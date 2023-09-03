@@ -1,11 +1,13 @@
 //! Provides basic linear algebra operations.
 
-use num_traits::Float;
+use core::ops::{AddAssign, Div, Mul, MulAssign, SubAssign};
+
+use crate::numbers::{Abs, One, Sqrt, Zero};
 
 /// Calculates the dot (inner) product of given two vectors.
 pub fn dot<T>(xs: &[T], ys: &[T]) -> T
 where
-    T: Float + std::ops::AddAssign,
+    T: Zero + AddAssign + Mul<Output = T> + Copy,
 {
     assert_eq!(xs.len(), ys.len());
     const C: usize = 16;
@@ -36,7 +38,7 @@ where
 /// Calculates the dot (inner) product of given two vectors.
 pub fn dot_naive<T>(xs: &[T], ys: &[T]) -> T
 where
-    T: Float + std::ops::AddAssign,
+    T: Zero + AddAssign + Mul<Output = T> + Copy,
 {
     assert_eq!(xs.len(), ys.len());
     let mut ans = T::zero();
@@ -54,7 +56,7 @@ where
 /// Returns zero if the vector is empty.
 pub fn norm2<T>(xs: &[T]) -> T
 where
-    T: Float + std::ops::AddAssign,
+    T: Abs + One + Sqrt + Zero + AddAssign + Div<Output = T> + Mul<Output = T> + PartialOrd + Copy,
 {
     let mx = max_abs(xs);
     if let Some(mx) = mx {
@@ -68,7 +70,7 @@ where
 /// Calculates the Euclidean norm of a scaled vector.
 fn norm2_scaled<T>(xs: &[T], a: T) -> T
 where
-    T: Float + std::ops::AddAssign,
+    T: Sqrt + Zero + AddAssign + Mul<Output = T> + Copy,
 {
     const C: usize = 16;
     if xs.len() < C {
@@ -98,7 +100,7 @@ where
 /// Calculates the Euclidean norm of a scaled vector.
 fn norm2_scaled_naive<T>(xs: &[T], a: T) -> T
 where
-    T: Float + std::ops::AddAssign,
+    T: Sqrt + Zero + AddAssign + Mul<Output = T> + Copy,
 {
     let mut acc = T::zero();
     for x in xs {
@@ -111,7 +113,7 @@ where
 /// Subtracts a vector from another vector in place.
 pub fn subtract_in<T>(ls: &mut [T], rs: &[T])
 where
-    T: Copy + std::ops::SubAssign,
+    T: SubAssign + Copy,
 {
     assert_eq!(ls.len(), rs.len());
     ls.iter_mut().zip(rs).for_each(|(l, r)| *l -= *r);
@@ -120,7 +122,7 @@ where
 /// Subtracts a vector from another vector in place.
 pub fn subtract_in_naive<T>(ls: &mut [T], rs: &[T])
 where
-    T: Copy + std::ops::SubAssign,
+    T: SubAssign + Copy,
 {
     assert_eq!(ls.len(), rs.len());
     for i in 0..ls.len() {
@@ -131,7 +133,7 @@ where
 /// Multiplies a scalar value to a given vector in place.
 pub fn scale_in<T>(xs: &mut [T], a: T)
 where
-    T: Copy + std::ops::MulAssign,
+    T: MulAssign + Copy,
 {
     xs.iter_mut().for_each(|x| *x *= a);
 }
@@ -139,7 +141,7 @@ where
 /// Multiplies a scalar value to a given vector in place.
 pub fn scale_in_naive<T>(xs: &mut [T], a: T)
 where
-    T: Copy + std::ops::MulAssign,
+    T: MulAssign + Copy,
 {
     for x in xs {
         *x *= a;
@@ -149,7 +151,7 @@ where
 /// Sums all the elements in a give vector.
 pub fn sum<T>(xs: &[T]) -> T
 where
-    T: Float + core::ops::AddAssign,
+    T: Zero + AddAssign + Copy,
 {
     const C: usize = 16;
     if xs.len() < C {
@@ -179,7 +181,7 @@ where
 /// Sums all the elements in a given vector.
 pub fn sum_naive<T>(xs: &[T]) -> T
 where
-    T: Float + core::ops::AddAssign,
+    T: Zero + AddAssign + Copy,
 {
     let mut ans = T::zero();
     for x in xs {
@@ -191,7 +193,7 @@ where
 /// Locates the minimum value in a given vector.
 pub fn min<T>(xs: &[T]) -> Option<T>
 where
-    T: Float,
+    T: PartialOrd + Copy,
 {
     const C: usize = 16;
     if xs.len() < C {
@@ -225,7 +227,7 @@ where
 /// Locates the minimum value in a given vector.
 pub fn min_naive<T>(xs: &[T]) -> Option<T>
 where
-    T: Float,
+    T: PartialOrd + Copy,
 {
     if xs.len() > 0 {
         let mut mn = xs[0];
@@ -243,7 +245,7 @@ where
 /// Locates the maximum absoulte value in a given vector.
 pub fn max_abs<T>(xs: &[T]) -> Option<T>
 where
-    T: Float,
+    T: Abs + PartialOrd + Copy,
 {
     const C: usize = 16;
     if xs.len() < C {
@@ -285,7 +287,7 @@ where
 /// Locates the maximum absolute value in a given vector.
 pub fn max_abs_naive<T>(xs: &[T]) -> Option<T>
 where
-    T: Float,
+    T: Abs + PartialOrd + Copy,
 {
     if xs.len() > 0 {
         let mut mx = xs[0].abs();
