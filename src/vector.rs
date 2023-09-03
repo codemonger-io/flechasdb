@@ -1,4 +1,3 @@
-use num_traits::Float;
 use std::num::NonZeroUsize;
 
 use crate::error::Error;
@@ -80,7 +79,7 @@ pub fn divide_vector_set<T, VS>(
     d: NonZeroUsize,
 ) -> Result<Vec<BlockVectorSet<T>>, Error>
 where
-    T: Float,
+    T: Copy,
     VS: VectorSet<T>,
 {
     let d = d.get();
