@@ -2,12 +2,12 @@
 name = "flechasdb"
 version = "0.0.1"
 edition = "2021"
+default-run = "flechasdb"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 anyhow = "1.0"
 ndarray = "0.12"
-num-traits = "0.2"
 rand = "0.8"
 rkm = "0.8"
