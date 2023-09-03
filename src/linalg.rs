@@ -2,32 +2,46 @@
 
 use num_traits::Float;
 
-/// Calculates a dot (inner) product of given two vectors.
+/// Calculates the dot (inner) product of given two vectors.
 pub fn dot<T>(xs: &[T], ys: &[T]) -> T
 where
-    T: Float + std::iter::Sum + std::ops::AddAssign,
+    T: Float + std::ops::AddAssign,
 {
     assert_eq!(xs.len(), ys.len());
     const C: usize = 16;
-    let r = xs.len() % C;
-    let mut ans = T::zero();
-    if r != 0 {
-        ans = xs[0..r].iter().zip(&ys[0..r]).map(|(x, y)| *x * *y).sum();
+    if xs.len() < C {
+        return dot_naive(xs, ys);
     }
-    if r < xs.len() {
-        let mut acc = [T::zero(); C];
-        let mut i = r;
-        while i + C <= xs.len() {
-            let xs = &xs[i..i+C];
-            let ys = &ys[i..i+C];
-            for j in 0..C {
-                acc[j] += xs[j] * ys[j];
-            }
-            i += C;
+    let mut acc = [T::zero(); C];
+    let r = xs.len() % C;
+    if r != 0 {
+        for i in 0..r {
+            acc[i] = xs[i] * ys[i];
         }
-        for v in &acc {
-            ans += *v;
+    }
+    let xs = &xs[r..];
+    let ys = &ys[r..];
+    let mut i = 0;
+    while i + C <= xs.len() {
+        let xs = &xs[i..i+C];
+        let ys = &ys[i..i+C];
+        for j in 0..C {
+            acc[j] += xs[j] * ys[j];
         }
+        i += C;
+    }
+    sum_naive(&acc[..])
+}
+
+/// Calculates the dot (inner) product of given two vectors.
+pub fn dot_naive<T>(xs: &[T], ys: &[T]) -> T
+where
+    T: Float + std::ops::AddAssign,
+{
+    assert_eq!(xs.len(), ys.len());
+    let mut ans = T::zero();
+    for i in 0..xs.len() {
+        ans += xs[i] * ys[i];
     }
     ans
 }
@@ -40,7 +54,7 @@ where
 /// Returns zero if the vector is empty.
 pub fn norm2<T>(xs: &[T]) -> T
 where
-    T: Float + std::iter::Sum + std::ops::AddAssign,
+    T: Float + std::ops::AddAssign,
 {
     let mx = max_abs(xs);
     if let Some(mx) = mx {
@@ -54,34 +68,44 @@ where
 /// Calculates the Euclidean norm of a scaled vector.
 fn norm2_scaled<T>(xs: &[T], a: T) -> T
 where
-    T: Float + std::iter::Sum + std::ops::AddAssign,
+    T: Float + std::ops::AddAssign,
 {
     const C: usize = 16;
+    if xs.len() < C {
+        return norm2_scaled_naive(xs, a);
+    }
+    let mut acc = [T::zero(); C];
     let r = xs.len() % C;
-    let mut ans = T::zero();
     if r != 0 {
-        ans = xs[..r].iter().map(|x| {
-            let scaled = *x * a;
-            scaled * scaled
-        }).sum();
-    }
-    if r < xs.len() {
-        let mut acc = [T::zero(); C];
-        let xs = &xs[r..];
-        let mut i = 0;
-        while i + C <= xs.len() {
-            let xs_c = &xs[i..i+C];
-            for j in 0..C {
-                let scaled = a * xs_c[j];
-                acc[j] += scaled * scaled;
-            }
-            i += C;
-        }
-        for a in &acc {
-            ans += *a;
+        for i in 0..r {
+            let scaled = a * xs[i];
+            acc[i] += scaled * scaled;
         }
     }
-    ans.sqrt()
+    let xs = &xs[r..];
+    let mut i = 0;
+    while i + C <= xs.len() {
+        let xs = &xs[i..i+C];
+        for j in 0..C {
+            let scaled = a * xs[j];
+            acc[j] += scaled * scaled;
+        }
+        i += C;
+    }
+    sum_naive(&acc[..]).sqrt()
+}
+
+/// Calculates the Euclidean norm of a scaled vector.
+fn norm2_scaled_naive<T>(xs: &[T], a: T) -> T
+where
+    T: Float + std::ops::AddAssign,
+{
+    let mut acc = T::zero();
+    for x in xs {
+        let scaled = *x * a;
+        acc += scaled * scaled;
+    }
+    acc.sqrt()
 }
 
 /// Subtracts a vector from another vector in place.
@@ -322,17 +346,56 @@ mod tests {
             1.0 + 2.0 + 3.0 + 4.0
             + 10.0 + 12.0 + 14.0 + 16.0
             - 2.0 - 4.0 - 6.0 - 8.0
-            -1.0 - 4.0 - 9.0 - 16.0,
+            - 1.0 - 4.0 - 9.0 - 16.0,
         );
     }
 
     #[test]
-    fn dot_should_calculate_inner_product_of_17_element_vectors() {
+    fn dot_should_calculate_inner_product_of_32_element_vectors() {
         let xs: &[f32] = &[
             1.0, 2.0, 3.0, 4.0,
             5.0, 6.0, 7.0, 8.0,
             2.0, 4.0, 6.0, 8.0,
             -1.0, -2.0, -3.0, -4.0,
+            1.0, 2.0, 3.0, 5.0,
+            7.0, 11.0, 13.0, 17.0,
+            -1.0, -2.0, -3.0, -5.0,
+            -7.0, -11.0, -13.0, -17.0,
+        ];
+        let ys: &[f32] = &[
+            1.0, 1.0, 1.0, 1.0,
+            2.0, 2.0, 2.0, 2.0,
+            -1.0, -1.0, -1.0, -1.0,
+            1.0, 2.0, 3.0, 4.0,
+            4.0, 3.0, 2.0, 1.0,
+            -1.0, -2.0, -3.0, -4.0,
+            3.0, 3.0, 3.0, 3.0,
+            -1.0, 1.0, -1.0, 1.0,
+        ];
+        assert_eq!(
+            dot(xs, ys),
+            1.0 + 2.0 + 3.0 + 4.0
+            + 10.0 + 12.0 + 14.0 + 16.0
+            - 2.0 - 4.0 - 6.0 - 8.0
+            - 1.0 - 4.0 - 9.0 - 16.0
+            + 4.0 + 6.0 + 6.0 + 5.0
+            - 7.0 - 22.0 - 39.0 - 68.0
+            - 3.0 - 6.0 - 9.0 - 15.0
+            + 7.0 - 11.0 + 13.0 - 17.0,
+        );
+    }
+
+    #[test]
+    fn dot_should_calculate_inner_product_of_33_element_vectors() {
+        let xs: &[f32] = &[
+            1.0, 2.0, 3.0, 4.0,
+            5.0, 6.0, 7.0, 8.0,
+            2.0, 4.0, 6.0, 8.0,
+            -1.0, -2.0, -3.0, -4.0,
+            1.0, 2.0, 3.0, 5.0,
+            7.0, 11.0, 13.0, 17.0,
+            -1.0, -2.0, -3.0, -5.0,
+            -7.0, -11.0, -13.0, -17.0,
             10.0,
         ];
         let ys: &[f32] = &[
@@ -340,6 +403,10 @@ mod tests {
             2.0, 2.0, 2.0, 2.0,
             -1.0, -1.0, -1.0, -1.0,
             1.0, 2.0, 3.0, 4.0,
+            4.0, 3.0, 2.0, 1.0,
+            -1.0, -2.0, -3.0, -4.0,
+            3.0, 3.0, 3.0, 3.0,
+            -1.0, 1.0, -1.0, 1.0,
             5.0,
         ];
         assert_eq!(
@@ -347,7 +414,11 @@ mod tests {
             1.0 + 2.0 + 3.0 + 4.0
             + 10.0 + 12.0 + 14.0 + 16.0
             - 2.0 - 4.0 - 6.0 - 8.0
-            -1.0 - 4.0 - 9.0 - 16.0
+            - 1.0 - 4.0 - 9.0 - 16.0
+            + 4.0 + 6.0 + 6.0 + 5.0
+            - 7.0 - 22.0 - 39.0 - 68.0
+            - 3.0 - 6.0 - 9.0 - 15.0
+            + 7.0 - 11.0 + 13.0 - 17.0
             + 50.0,
         );
     }
@@ -382,15 +453,34 @@ mod tests {
     }
 
     #[test]
-    fn norm2_should_calculate_norm_of_17_element_vector() {
+    fn norm2_should_calculate_norm_of_32_element_vector() {
         let v: &[f32] = &[
             1.0, 2.0, 3.0, 4.0,
             -1.0, -2.0, -3.0, -4.0,
             5.0, 6.0, 7.0, 8.0,
             9.0, 10.0, 11.0, 12.0,
+            -4.0, 2.0, -4.0, 2.0,
+            1.0, 2.0, 3.0, 5.0,
+            7.0, 11.0, 13.0, 17.0,
+            3.0, 6.0, 9.0, 12.0,
+        ]; // sum(x^2) = 1657
+        assert_eq_f!(norm2(v), 40.70626, 1.0e-5);
+    }
+
+    #[test]
+    fn norm2_should_calculate_norm_of_33_element_vector() {
+        let v: &[f32] = &[
+            1.0, 2.0, 3.0, 4.0,
+            -1.0, -2.0, -3.0, -4.0,
+            5.0, 6.0, 7.0, 8.0,
+            9.0, 10.0, 11.0, 12.0,
+            -4.0, 2.0, -4.0, 2.0,
+            1.0, 2.0, 3.0, 5.0,
+            7.0, 11.0, 13.0, 17.0,
+            3.0, 6.0, 9.0, 12.0,
             13.0,
-        ]; // sum(x^2) = 849
-        assert_eq_f!(norm2(v), 29.13760, 1.0e-5);
+        ]; // sum(x^2) = 1826
+        assert_eq_f!(norm2(v), 42.73172, 1.0e-5);
     }
 
     #[test]
