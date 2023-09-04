@@ -18,6 +18,9 @@ pub trait VectorSet<T> {
 
     /// Returns the i-th vector.
     fn get(&self, i: usize) -> &Self::Vector;
+
+    /// Returns the mutable i-th vector.
+    fn get_mut(&mut self, i: usize) -> &mut Self::Vector;
 }
 
 /// Vectors in a contiguous array.
@@ -68,6 +71,12 @@ impl<T> VectorSet<T> for BlockVectorSet<T> {
         let from = i * self.vector_size;
         let to = from + self.vector_size;
         &self.data[from..to]
+    }
+
+    fn get_mut(&mut self, i: usize) -> &mut Self::Vector {
+        let from = i * self.vector_size;
+        let to = from + self.vector_size;
+        &mut self.data[from..to]
     }
 }
 
