@@ -38,6 +38,42 @@ impl One for f64 {
     }
 }
 
+/// Represents a number that has positive infinity.
+pub trait Infinity {
+    /// Returns positive infinity.
+    fn infinity() -> Self;
+}
+
+impl Infinity for f32 {
+    fn infinity() -> f32 {
+        f32::INFINITY
+    }
+}
+
+impl Infinity for f64 {
+    fn infinity() -> f64 {
+        f64::INFINITY
+    }
+}
+
+/// Represents a number converted from a other primitive type.
+pub trait FromAs<T> {
+    /// Returns the converted number.
+    fn from_as(t: T) -> Self;
+}
+
+impl FromAs<usize> for f32 {
+    fn from_as(t: usize) -> f32 {
+        t as f32
+    }
+}
+
+impl FromAs<usize> for f64 {
+    fn from_as(t: usize) -> f64 {
+        t as f64
+    }
+}
+
 /// Represents a number that can return an absolute value.
 pub trait Abs {
     /// Returns the absolute value.
