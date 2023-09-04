@@ -113,6 +113,15 @@ where
     acc.sqrt()
 }
 
+/// Adds a vector to another vector in place.
+pub fn add_in<T>(ls: &mut [T], rs: &[T])
+where
+    T: AddAssign + Copy,
+{
+    assert_eq!(ls.len(), rs.len());
+    ls.iter_mut().zip(rs).for_each(|(l, r)| *l += *r);
+}
+
 /// Subtracts a vector from another vector in place.
 pub fn subtract_in<T>(ls: &mut [T], rs: &[T])
 where
@@ -524,6 +533,30 @@ mod tests {
     fn norm2_should_caclulate_norm_of_vector_of_16_extremely_small_positive_values() {
         let v: &[f32] = &[1.0e-30; 16];
         assert_eq_f!(norm2(v), 4.0e-30, 1.0e-35);
+    }
+
+    #[test]
+    fn add_in_should_add_one_element_vectors() {
+        let xs: &mut [f32] = &mut [1.0];
+        let ys: &[f32] = &[2.0];
+        add_in(xs, ys);
+        assert_eq!(xs, &[3.0]);
+    }
+
+    #[test]
+    fn add_in_should_add_three_element_vectors() {
+        let xs: &mut [f32] = &mut [0.0, -1.0, 2.0];
+        let ys: &[f32] = &[-1.0, 2.0, -3.0];
+        add_in(xs, ys);
+        assert_eq!(xs, &[-1.0, 1.0, -1.0]);
+    }
+
+    #[test]
+    fn add_in_should_work_with_empty_vectors() {
+        let xs: &mut [f32] = &mut [];
+        let ys: &[f32] = &[];
+        add_in(xs, ys);
+        assert_eq!(xs, &[]);
     }
 
     #[test]
