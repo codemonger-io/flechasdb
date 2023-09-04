@@ -56,10 +56,13 @@ where
 /// Returns zero if the vector is empty.
 pub fn norm2<T>(xs: &[T]) -> T
 where
-    T: Abs + One + Sqrt + Zero + AddAssign + Div<Output = T> + Mul<Output = T> + PartialOrd + Copy,
+    T: Abs + One + Sqrt + Zero + AddAssign + Div<Output = T> + Mul<Output = T> + PartialOrd + PartialEq + Copy,
 {
     let mx = max_abs(xs);
     if let Some(mx) = mx {
+        if mx == T::zero() {
+            return T::zero();
+        }
         let mx_sqrt = mx.sqrt();
         norm2_scaled(xs, T::one() / mx_sqrt) * mx_sqrt
     } else {
@@ -488,6 +491,14 @@ mod tests {
     #[test]
     fn norm2_should_return_zero_for_empty_vector() {
         let v: &[f32] = &[];
+        assert_eq!(norm2(v), 0.0);
+    }
+
+    #[test]
+    fn norm2_should_return_zero_for_zero_vector() {
+        let v: &[f32] = &[0.0];
+        assert_eq!(norm2(v), 0.0);
+        let v: &[f32] = &[0.0, 0.0, 0.0];
         assert_eq!(norm2(v), 0.0);
     }
 
