@@ -338,7 +338,7 @@ mod tests {
     fn weighted_index_should_distribute_indices_according_to_updated_weights() {
         let weights = vec![Number(1.0), Number(2.0), Number(3.0)];
         let mut weighted_index = WeightedIndex::new(weights).unwrap();
-        weighted_index.update(&[(0, &Number(5.0)), (2, &Number(0.0))]);
+        weighted_index.update(&[(0, &Number(5.0)), (2, &Number(0.0))]).unwrap();
         let rng = rand::thread_rng();
         let indices = rng
             .sample_iter(&weighted_index)

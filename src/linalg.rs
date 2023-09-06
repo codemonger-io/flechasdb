@@ -446,13 +446,7 @@ mod tests {
     #[test]
     fn norm2_should_calculate_norm_of_one_element_vector() {
         let v: &[f32] = &[2.0];
-        const expected: f32 = 2.0;
-        assert!(
-            (expected - norm2(v)).abs() < 1.0e-6,
-            "expected {} but got {}",
-            expected,
-            norm2(v),
-        );
+        assert_eq_f!(norm2(v), 2.0, 1.0e-6);
     }
 
     #[test]

@@ -9,7 +9,7 @@ use crate::error::Error;
 use crate::linalg::{add_in, dot, norm2, scale_in, subtract_in};
 use crate::numbers::{Abs, FromAs, Infinity, One, Sqrt, Zero};
 use crate::slice::AsSlice;
-use crate::vector::{ BlockVectorSet, VectorSet };
+use crate::vector::{BlockVectorSet, VectorSet};
 
 /// Default epsilon value.
 pub trait DefaultEpsilon {
