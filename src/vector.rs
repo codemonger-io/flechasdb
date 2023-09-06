@@ -78,15 +78,62 @@ impl<T> VectorSet<T> for BlockVectorSet<T> {
     }
 }
 
+/// Subvectors of another vector set.
+pub struct SubVectorSet<'a, T, VS>
+where
+    VS: VectorSet<T>,
+{
+    // Underlying vector set.
+    vs: &'a VS,
+    // Length of a subvector.
+    vector_size: usize,
+    // Offset to the first subvector.
+    offset: usize,
+    t: std::marker::PhantomData<T>,
+}
+
+impl<'a, T, VS> SubVectorSet<'a, T, VS>
+where
+    VS: VectorSet<T>,
+{
+    pub fn new(vs: &'a VS, vector_size: usize, offset: usize) -> Self {
+        Self {
+            vs,
+            vector_size,
+            offset,
+            t: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<'a, T, VS> VectorSet<T> for SubVectorSet<'a, T, VS>
+where
+    VS: VectorSet<T>,
+{
+    type Vector = [T];
+
+    fn len(&self) -> usize {
+        self.vs.len()
+    }
+
+    fn vector_size(&self) -> usize {
+        self.vector_size
+    }
+
+    fn get(&self, i: usize) -> &Self::Vector {
+        let v = self.vs.get(i).as_slice();
+        &v[self.offset..self.offset + self.vector_size]
+    }
+}
+
 /// Divides a given vector set into subvector sets.
 ///
 /// Fails if `vs.vector_size()` is not multiple of `d`.
-pub fn divide_vector_set<T, VS>(
-    vs: &VS,
+pub fn divide_vector_set<'a, T, VS>(
+    vs: &'a VS,
     d: NonZeroUsize,
-) -> Result<Vec<BlockVectorSet<T>>, Error>
+) -> Result<Vec<SubVectorSet<'a, T, VS>>, Error>
 where
-    T: Copy,
     VS: VectorSet<T>,
 {
     let d = d.get();
@@ -97,26 +144,9 @@ where
             d,
         )));
     }
-    let n = vs.len();
     let m = vs.vector_size() / d;
-    let mut divided: Vec<Vec<T>> = Vec::with_capacity(d);
-    for _ in 0..d {
-        divided.push(Vec::with_capacity(m * n));
-    }
-    for i in 0..n {
-        let v: &[T] = vs.get(i).as_slice();
-        for j in 0..d {
-            let from = j * m;
-            let to = from + m;
-            divided[j].extend_from_slice(&v[from..to])
-        }
-    }
-    let divided = divided
-        .drain(..)
-        .map(|subdata| BlockVectorSet::chunk(
-            subdata,
-            m.try_into().unwrap(),
-        ).unwrap())
+    let divided = (0..d)
+        .map(|i| SubVectorSet::new(vs, m, i * m))
         .collect();
     Ok(divided)
 }
@@ -187,7 +217,7 @@ mod tests {
     }
 
     #[test]
-    fn divice_vector_set_can_divide_empty_vector_set() {
+    fn divide_vector_set_can_divide_empty_vector_set() {
         let vs = BlockVectorSet::chunk(
             Vec::<f32>::new(),
             10.try_into().unwrap(),
