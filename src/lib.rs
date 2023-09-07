@@ -1,3 +1,4 @@
+pub mod db;
 pub mod distribution;
 pub mod error;
 pub mod kmeans;
