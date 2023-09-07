@@ -8,6 +8,4 @@ default-run = "flechasdb"
 
 [dependencies]
 anyhow = "1.0"
-ndarray = "0.12"
 rand = "0.8"
-rkm = "0.8"
