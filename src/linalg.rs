@@ -4,13 +4,15 @@ use core::ops::{AddAssign, Div, Mul, MulAssign, SubAssign};
 
 use crate::numbers::{Abs, One, Sqrt, Zero};
 
+const UNROLL: usize = 16;
+
 /// Calculates the dot (inner) product of given two vectors.
 pub fn dot<T>(xs: &[T], ys: &[T]) -> T
 where
     T: Zero + AddAssign + Mul<Output = T> + Copy,
 {
     assert_eq!(xs.len(), ys.len());
-    const C: usize = 16;
+    const C: usize = UNROLL;
     if xs.len() < C {
         return dot_naive(xs, ys);
     }
@@ -75,7 +77,7 @@ fn norm2_scaled<T>(xs: &[T], a: T) -> T
 where
     T: Sqrt + Zero + AddAssign + Mul<Output = T> + Copy,
 {
-    const C: usize = 16;
+    const C: usize = UNROLL;
     if xs.len() < C {
         return norm2_scaled_naive(xs, a);
     }
@@ -111,6 +113,34 @@ where
         acc += scaled * scaled;
     }
     acc.sqrt()
+}
+
+/// Calculates the Euclidean norm of a given vector.
+pub fn norm2_naive<T>(xs: &[T]) -> T
+where
+    T: Sqrt + Zero + AddAssign + Mul<Output = T> + Copy,
+{
+    dot_naive(xs, xs).sqrt()
+}
+
+/// Calculates the Euclidean norm of a given vector.
+///
+/// This function will produce a more accurate result if `xs` contains an
+/// extermely large or small value.
+pub fn norm2_naive_check<T>(xs: &[T]) -> T
+where
+    T: Abs + One + Sqrt + Zero + AddAssign + Div<Output = T> + Mul<Output = T> + PartialOrd + PartialEq + Copy,
+{
+    let mx = max_abs_naive(xs);
+    if let Some(mx) = mx {
+        if mx == T::zero() {
+            return T::zero();
+        }
+        let mx_sqrt = mx.sqrt();
+        norm2_scaled_naive(xs, T::one() / mx_sqrt) * mx_sqrt
+    } else {
+        T::zero()
+    }
 }
 
 /// Adds a vector to another vector in place.
@@ -165,7 +195,7 @@ pub fn sum<T>(xs: &[T]) -> T
 where
     T: Zero + AddAssign + Copy,
 {
-    const C: usize = 16;
+    const C: usize = UNROLL;
     if xs.len() < C {
         return sum_naive(xs);
     }
@@ -207,7 +237,7 @@ pub fn min<T>(xs: &[T]) -> Option<T>
 where
     T: PartialOrd + Copy,
 {
-    const C: usize = 16;
+    const C: usize = UNROLL;
     if xs.len() < C {
         return min_naive(xs);
     }
@@ -259,7 +289,7 @@ pub fn max_abs<T>(xs: &[T]) -> Option<T>
 where
     T: Abs + PartialOrd + Copy,
 {
-    const C: usize = 16;
+    const C: usize = UNROLL;
     if xs.len() < C {
         return max_abs_naive(xs);
     }
