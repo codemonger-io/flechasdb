@@ -7,6 +7,9 @@ use flechasdb::linalg::{
     dot_naive,
     min,
     min_naive,
+    norm2,
+    norm2_naive,
+    norm2_naive_check,
     scale_in,
     scale_in_naive,
     subtract_in,
@@ -17,6 +20,7 @@ use flechasdb::linalg::{
 
 fn main() {
     benchmark_dot();
+    benchmark_norm2();
     benchmark_min();
     benchmark_scale_in();
     benchmark_subtract_in();
@@ -41,6 +45,28 @@ fn benchmark_dot() {
         let ans = dot_naive(&xs, &ys);
         let elapsed = time.elapsed();
         println!("näive dot {} in {} μs", ans, elapsed.as_micros());
+    }
+}
+
+fn benchmark_norm2() {
+    const R: usize = 5;
+    const N: usize = 10000000;
+    let mut xs = vec![0.0f32; N];
+    let mut rng = rand::thread_rng();
+    rng.fill(&mut xs[..]);
+    for _ in 0..R {
+        let time = std::time::Instant::now();
+        let ans = norm2(&xs);
+        let elapsed = time.elapsed();
+        println!("norm2 {} in {} μs", ans, elapsed.as_micros());
+        let time = std::time::Instant::now();
+        let ans = norm2_naive(&xs);
+        let elapsed = time.elapsed();
+        println!("näive norm2 {} in {} μs", ans, elapsed.as_micros());
+        let time = std::time::Instant::now();
+        let ans = norm2_naive_check(&xs);
+        let elapsed = time.elapsed();
+        println!("näive norm2 check {} in {} μs", ans, elapsed.as_micros());
     }
 }
 
