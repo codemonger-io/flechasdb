@@ -6,5 +6,6 @@ pub mod kmeans;
 pub mod linalg;
 pub mod numbers;
 pub mod partitions;
+pub mod protos;
 pub mod slice;
 pub mod vector;
