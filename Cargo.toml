@@ -13,6 +13,7 @@ protobuf = "3.2"
 rand = "0.8"
 ring = "0.16"
 tempfile = "3.8"
+uuid = { version = "1.4", features = ["v4"] }
 
 [build-dependencies]
 protobuf-codegen = "3.2"
