@@ -1,6 +1,6 @@
 //! Vector database.
 
-use core::iter::Iterator;
+use core::iter::{IntoIterator, Iterator};
 use core::num::NonZeroUsize;
 
 use crate::error::Error;
@@ -9,6 +9,8 @@ use crate::linalg::{ dot, subtract_in };
 use crate::partitions::{ Partitioning, Partitions };
 use crate::slice::AsSlice;
 use crate::vector::{ VectorSet, divide_vector_set };
+
+pub mod proto;
 
 /// Vector database builder.
 pub struct DatabaseBuilder<T, VS>
@@ -99,8 +101,6 @@ where
             event!(DatabaseBuilderEvent::FinishedQuantization(i));
         }
         Ok(Database {
-            _t: core::marker::PhantomData,
-            _vs: core::marker::PhantomData,
             vector_size: partitions.residues.vector_size(),
             num_partitions: self.num_partitions,
             num_divisions: self.num_divisions,
@@ -126,8 +126,6 @@ pub struct Database<T, VS>
 where
     VS: VectorSet<T>,
 {
-    _t: core::marker::PhantomData<T>,
-    _vs: core::marker::PhantomData<VS>,
     // Vector size.
     vector_size: usize,
     // Number of partitions.
@@ -144,9 +142,18 @@ where
 
 impl<T, VS> Database<T, VS>
 where
-    T: Scalar,
     VS: VectorSet<T>,
 {
+    /// Returns the vector size.
+    pub fn vector_size(&self) -> usize {
+        self.vector_size
+    }
+
+    /// Returns the number of partitions.
+    pub fn num_partitions(&self) -> usize {
+        self.num_partitions
+    }
+
     /// Returns the number of subvector divisions.
     pub fn num_divisions(&self) -> usize {
         self.num_divisions
@@ -162,6 +169,20 @@ where
         self.num_clusters
     }
 
+    /// Returns an iterator of partitions.
+    pub fn partitions(&self) -> PartitionIter<'_, T, VS> {
+        PartitionIter {
+            database: self,
+            next_index: 0,
+        }
+    }
+}
+
+impl<T, VS> Database<T, VS>
+where
+    T: Scalar,
+    VS: VectorSet<T>,
+{
     /// Queries k-nearest neighbors (k-NN) of a given vector.
     pub fn query<V, EventHandler>(
         &self, v: &V,
@@ -245,6 +266,99 @@ where
     }
 }
 
+/// Iterator of partitions in a database.
+pub struct PartitionIter<'a, T, VS>
+where
+    VS: VectorSet<T>,
+{
+    // Database.
+    database: &'a Database<T, VS>,
+    // Next partition index.
+    next_index: usize,
+}
+
+impl<'a, T, VS> Iterator for PartitionIter<'a, T, VS>
+where
+    T: Clone,
+    VS: VectorSet<T>,
+{
+    type Item = Partition<T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.next_index < self.database.num_partitions {
+            let partition = Partition::new(self.database, self.next_index);
+            self.next_index += 1;
+            Some(partition)
+        } else {
+            None
+        }
+    }
+}
+
+/// Partition in a database.
+pub struct Partition<T> {
+    // Number of subvector divisions.
+    num_divisions: usize,
+    // Centroid of the partition.
+    pub centroid: Vec<T>,
+    // Encoded vectors.
+    pub encoded_vectors: Vec<u32>,
+}
+
+impl<T> Partition<T> {
+    /// Returns the vector size.
+    pub fn vector_size(&self) -> usize {
+        self.centroid.len()
+    }
+
+    /// Returns the number of subvector divisions.
+    pub fn num_divisions(&self) -> usize {
+        self.num_divisions
+    }
+
+    /// Returns the number of vectors.
+    pub fn num_vectors(&self) -> usize {
+        self.encoded_vectors.len() / self.num_divisions
+    }
+}
+
+impl<T> Partition<T>
+where
+    T: Clone,
+{
+    /// Extracts a partition from a given database.
+    fn new<VS>(db: &Database<T, VS>, index: usize) -> Self
+    where
+        VS: VectorSet<T>,
+    {
+        let mut centroid: Vec<T> = Vec::with_capacity(db.vector_size());
+        centroid.extend_from_slice(
+            db.partitions.codebook.centroids.get(index),
+        );
+        let num_vectors = db.partitions.codebook.indices
+            .iter()
+            .filter(|&&pi| pi == index)
+            .count();
+        let mut encoded_vectors: Vec<u32> =
+            Vec::with_capacity(num_vectors * db.num_divisions());
+        for (vi, _) in db.partitions.codebook.indices
+            .iter()
+            .enumerate()
+            .filter(|(_, &pi)| pi == index)
+        {
+            for di in 0..db.num_divisions() {
+                encoded_vectors.push(
+                    db.codebooks[di].indices[vi].try_into().unwrap(),
+                );
+            }
+        }
+        Partition {
+            num_divisions: db.num_divisions(),
+            centroid,
+            encoded_vectors,
+        }
+    }
+}
 
 /// Database query event.
 pub enum DatabaseQueryEvent {
