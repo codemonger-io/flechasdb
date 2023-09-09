@@ -1,0 +1,84 @@
+// Database.
+
+syntax = "proto3";
+
+// Database.
+message Database {
+  // Number of elements in a vector.
+  uint32 vector_size = 1;
+  // Number of partitions in the database.
+  uint32 num_partitions = 2; 
+  // Number of subvector divisions. vector_size must be multiple of this.
+  uint32 num_divisions = 3;
+  // Number of codes in each codebook.
+  uint32 num_codes = 4;
+
+  // Partition references.
+  // Actual data are separately loaded.
+  repeated PartitionRef partition_refs = 10;
+
+  // codebooks.
+  repeated CodebookRef codebook_refs = 20;
+}
+
+// Reference to a partition.
+message PartitionRef {
+  // ID of the partition. Must be URL-safe.
+  // Supposed to be the Base64-encoded SHA-256 digest of the entire partition.
+  string id = 1;
+  // Centroid of the partition.
+  // Number of elements is given by Database::vector_size
+  repeated float centroid = 2;
+}
+
+// Reference to a codebook.
+message CodebookRef {
+  // ID of the codebook. Must be URL-safe.
+  // Supposed to be the Base64-encoded SHA-256 digest of the entire codebook.
+  string id = 1;
+}
+
+// Single partition.
+message Partition {
+  // Vector size.
+  uint32 vector_size = 1;
+  // Number of subvector divisions. Must match Database::num_divisions.
+  uint32 num_divisions = 2;
+  // Number of vectors in the partition.
+  uint32 num_vectors = 3;
+
+  // Centroid of the partition.
+  // Number of elements is given by vector_size.
+  repeated float centroid = 10;
+
+  // Encoded vectors. Number of elements is given by num_vectors.
+  repeated EncodedVector encoded_vectors = 20;
+}
+
+// Codebook.
+message Codebook {
+  // Vector size.
+  // Must be Database::vector_size / Database::num_divisions.
+  uint32 vector_size = 1;
+  // Number of codes in the codebook. Must match Database::num_codes.
+  uint32 num_codes = 2;
+
+  // Codes. Number of elements is given by num_codes.
+  repeated CodeVector codes = 10;
+}
+
+// Encoded vector in a partition.
+message EncodedVector {
+  // Index of the vector. 0..Partition::num_vectors - 1.
+  uint32 index = 1;
+  // Indices of the codes in the codebooks.
+  // Each elemtn specifies the code in the corresponding codebook.
+  // Number of elements is given by Partition::num_divisions.
+  repeated uint32 code_indices = 2;
+}
+
+// Code vector.
+message CodeVector {
+  // Vector elements. Number of elements is given by Codebook::vector_size.
+  repeated float elements = 1;
+}
