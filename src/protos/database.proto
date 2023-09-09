@@ -18,13 +18,13 @@ message Database {
   repeated PartitionRef partition_refs = 10;
 
   // codebooks.
-  repeated CodebookRef codebook_refs = 20;
+  repeated CodebookRef codebook_refs = 11;
 }
 
 // Reference to a partition.
 message PartitionRef {
-  // ID of the partition. Must be URL-safe.
-  // Supposed to be the Base64-encoded SHA-256 digest of the entire partition.
+  // ID of the partition. Supposed to be the URL-safe Base64-encoded SHA-256
+  // digest of the entire partition.
   string id = 1;
   // Centroid of the partition.
   // Number of elements is given by Database::vector_size
@@ -33,8 +33,8 @@ message PartitionRef {
 
 // Reference to a codebook.
 message CodebookRef {
-  // ID of the codebook. Must be URL-safe.
-  // Supposed to be the Base64-encoded SHA-256 digest of the entire codebook.
+  // ID of the codebook. Supposed to be the URL-safe Base64-encoded SHA-256
+  // digest of the entire codebook.
   string id = 1;
 }
 
@@ -52,13 +52,15 @@ message Partition {
   repeated float centroid = 10;
 
   // Encoded vectors. Number of elements is given by num_vectors.
-  repeated EncodedVector encoded_vectors = 20;
+  repeated EncodedVector encoded_vectors = 11;
+
+  // Vector IDs. Must be unique across the database.
+  repeated Uuid vector_ids = 12;
 }
 
 // Codebook.
 message Codebook {
-  // Vector size.
-  // Must be Database::vector_size / Database::num_divisions.
+  // Vector size. Must be Database::vector_size / Database::num_divisions.
   uint32 vector_size = 1;
   // Number of codes in the codebook. Must match Database::num_codes.
   uint32 num_codes = 2;
@@ -81,4 +83,12 @@ message EncodedVector {
 message CodeVector {
   // Vector elements. Number of elements is given by Codebook::vector_size.
   repeated float elements = 1;
+}
+
+// UUID.
+message Uuid {
+  // Upper half of the ID; i.e., most significant 64 bits.
+  fixed64 upper = 1;
+  // Lower half of the ID; i.e., least significant 64 bits.
+  fixed64 lower = 2;
 }
