@@ -40,10 +40,17 @@ fn main() -> Result<(), Error> {
         .with_clusters(C.try_into().unwrap())
         .build(Some(move |event| {
             match event {
+                DatabaseBuilderEvent::StartingIdAssignment |
                 DatabaseBuilderEvent::StartingPartitioning |
                 DatabaseBuilderEvent::StartingSubvectorDivision |
                 DatabaseBuilderEvent::StartingQuantization(_) => {
                     event_time = std::time::Instant::now();
+                },
+                DatabaseBuilderEvent::FinishedIdAssignment => {
+                    println!(
+                        "assigned vector IDs in {} μs",
+                        event_time.elapsed().as_micros(),
+                    );
                 },
                 DatabaseBuilderEvent::FinishedPartitioning => {
                     println!(
