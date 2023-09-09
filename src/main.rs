@@ -2,12 +2,15 @@ use anyhow::Error;
 use rand::Rng;
 
 use flechasdb::db::{
+    Database,
     DatabaseBuilder,
     DatabaseBuilderEvent,
     DatabaseQueryEvent,
 };
+use flechasdb::db::proto::serialize_database;
+use flechasdb::io::LocalFileSystem;
 use flechasdb::linalg::{ norm2, scale_in };
-use flechasdb::vector::{ BlockVectorSet };
+use flechasdb::vector::{ BlockVectorSet, VectorSet };
 
 fn main() -> Result<(), Error> {
     const N: usize = 5000; // number of vectors
@@ -63,7 +66,7 @@ fn main() -> Result<(), Error> {
                 },
             };
         }))?;
-    println!("built database in {} us", time.elapsed().as_micros());
+    println!("built database in {} μs", time.elapsed().as_micros());
     // creates a random query vector
     let mut qv = vec![0.0f32; M];
     rng.fill(&mut qv[..]);
@@ -105,9 +108,27 @@ fn main() -> Result<(), Error> {
             }
         })
     )?;
-    println!("queried k-NN in {} us", time.elapsed().as_micros());
+    println!("queried k-NN in {} μs", time.elapsed().as_micros());
     for (i, result) in results.iter().enumerate() {
         println!("{}: {:?}", i, result);
     }
+    // saves the database
+    let time = std::time::Instant::now();
+    save_database(&db, "testdb")?;
+    println!("saved database in {} μs", time.elapsed().as_micros());
+    Ok(())
+}
+
+fn save_database<VS, P>(
+    db: &Database<f32, VS>,
+    base_path: P,
+) -> Result<(), Error>
+where
+    VS: VectorSet<f32>,
+    P: AsRef<std::path::Path> + core::fmt::Debug,
+{
+    println!("saving database to {:?}", base_path);
+    let mut fs = LocalFileSystem::new(base_path);
+    serialize_database(db, &mut fs)?;
     Ok(())
 }
