@@ -2,6 +2,7 @@
 
 use core::iter::{IntoIterator, Iterator};
 use core::num::NonZeroUsize;
+use uuid::Uuid;
 
 use crate::error::Error;
 use crate::kmeans::{ Codebook, Scalar, cluster };
@@ -75,13 +76,20 @@ where
                 event_handler.iter_mut().for_each(|f| f($event));
             };
         }
+        // assigns IDs to vectors
+        event!(DatabaseBuilderEvent::StartingIdAssignment);
+        let mut vector_ids: Vec<Uuid> = Vec::with_capacity(self.vs.len());
+        for _ in 0..self.vs.len() {
+            vector_ids.push(Uuid::new_v4());
+        }
+        event!(DatabaseBuilderEvent::FinishedIdAssignment);
         // partitions all the data
         event!(DatabaseBuilderEvent::StartingPartitioning);
         let partitions = self.vs.partition(
             self.num_partitions.try_into().unwrap(),
         )?;
         event!(DatabaseBuilderEvent::FinishedPartitioning);
-        // dividing residual vectors
+        // divides residual vectors
         event!(DatabaseBuilderEvent::StartingSubvectorDivision);
         let divided = divide_vector_set(
             &partitions.residues,
@@ -105,6 +113,7 @@ where
             num_partitions: self.num_partitions,
             num_divisions: self.num_divisions,
             num_clusters: self.num_clusters,
+            vector_ids,
             partitions,
             codebooks,
         })
@@ -113,6 +122,8 @@ where
 
 /// Database builder event.
 pub enum DatabaseBuilderEvent {
+    StartingIdAssignment,
+    FinishedIdAssignment,
     StartingPartitioning,
     FinishedPartitioning,
     StartingSubvectorDivision,
@@ -134,6 +145,8 @@ where
     num_divisions: usize,
     // Number of clusters.
     num_clusters: usize,
+    // Vector IDs.
+    vector_ids: Vec<Uuid>,
     // Partitions.
     partitions: Partitions<T, VS>,
     // Codebooks for PQ.
@@ -414,19 +427,21 @@ where
         let mut results: Vec<QueryResult<T>> = Vec::with_capacity(
             self.partition_size(),
         );
-        for (i, _) in self.db.partitions.codebook.indices
+        for (pvi, (vi, _)) in self.db.partitions.codebook.indices
             .iter()
             .enumerate()
             .filter(|(_, &pi)| pi == self.partition_index)
+            .enumerate()
         {
             let mut distance = T::zero();
             for di in 0..num_divisions {
-                let ci = self.db.codebooks[di].indices[i];
+                let ci = self.db.codebooks[di].indices[vi];
                 distance += distance_table[di * num_clusters + ci];
             }
             results.push(QueryResult {
                 partition_index: self.partition_index,
-                vector_index: i,
+                vector_id: self.db.vector_ids[vi].clone(),
+                vector_index: pvi,
                 squared_distance: distance,
             });
         }
@@ -447,7 +462,9 @@ where
 pub struct QueryResult<T> {
     /// Partition index.
     pub partition_index: usize,
-    /// Vector index.
+    /// Vector ID. Must be unique accross the database.
+    pub vector_id: Uuid,
+    /// Vector index. Local index in the partition.
     pub vector_index: usize,
     /// Approximate squared distance.
     pub squared_distance: T,
