@@ -196,6 +196,7 @@ impl Serialize<ProtosPartition> for Partition<f32> {
         partition.centroid.reserve(m);
         partition.centroid.extend_from_slice(&self.centroid[..]);
         partition.encoded_vectors.reserve(n);
+        partition.vector_ids.reserve(n);
         for vi in 0..self.num_vectors() {
             let from = vi * d;
             let to = from + d;
@@ -206,6 +207,7 @@ impl Serialize<ProtosPartition> for Partition<f32> {
                 self.encoded_vectors[from..to].iter().map(|&c| c as u32),
             );
             partition.encoded_vectors.push(encoded_vector);
+            partition.vector_ids.push(self.vector_ids[vi].serialize()?);
         }
         Ok(partition)
     }

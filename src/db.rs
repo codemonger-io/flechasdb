@@ -316,6 +316,8 @@ pub struct Partition<T> {
     pub centroid: Vec<T>,
     // Encoded vectors.
     pub encoded_vectors: Vec<u32>,
+    // Vector IDs.
+    pub vector_ids: Vec<Uuid>,
 }
 
 impl<T> Partition<T> {
@@ -354,6 +356,7 @@ where
             .count();
         let mut encoded_vectors: Vec<u32> =
             Vec::with_capacity(num_vectors * db.num_divisions());
+        let mut vector_ids: Vec<Uuid> = Vec::with_capacity(num_vectors);
         for (vi, _) in db.partitions.codebook.indices
             .iter()
             .enumerate()
@@ -364,11 +367,13 @@ where
                     db.codebooks[di].indices[vi].try_into().unwrap(),
                 );
             }
+            vector_ids.push(db.vector_ids[vi]);
         }
         Partition {
             num_divisions: db.num_divisions(),
             centroid,
             encoded_vectors,
+            vector_ids,
         }
     }
 }
