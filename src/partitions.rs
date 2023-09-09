@@ -29,6 +29,11 @@ where
     T: Scalar,
     VS: VectorSet<T>,
 {
+    /// Returns the number of partitions.
+    pub fn num_partitions(&self) -> usize {
+        self.codebook.indices.len()
+    }
+
     /// Returns an iterator of all the input vectors.
     ///
     /// Iteration may be expensive because it reconstructs an input vector
