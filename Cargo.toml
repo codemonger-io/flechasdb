@@ -8,4 +8,12 @@ default-run = "flechasdb"
 
 [dependencies]
 anyhow = "1.0"
+base64 = "0.21"
+protobuf = "3.2"
 rand = "0.8"
+ring = "0.16"
+tempfile = "3.8"
+
+[build-dependencies]
+protobuf-codegen = "3.2"
+protoc-bin-vendored = "3.0"
