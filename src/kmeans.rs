@@ -6,7 +6,7 @@ use rand::distributions::uniform::SampleUniform;
 
 use crate::distribution::WeightedIndex;
 use crate::error::Error;
-use crate::linalg::{add_in, dot, norm2, scale_in, subtract_in};
+use crate::linalg::{add_in, dot, norm2, scale_in, subtract, subtract_in};
 use crate::numbers::{Abs, FromAs, Infinity, One, Sqrt, Zero};
 use crate::slice::AsSlice;
 use crate::vector::{BlockVectorSet, VectorSet};
@@ -103,7 +103,10 @@ where
     let mut chosen: Vec<bool> = vec![false; n];
     let mut centroids: Vec<T> = Vec::with_capacity(k * m);
     let mut indices: Vec<usize> = vec![0; n];
-    let mut vector_buf = vec![T::zero(); m];
+    let mut vector_buf: Vec<T> = Vec::with_capacity(m);
+    unsafe {
+        vector_buf.set_len(m);
+    }
     if k == n {
         // no need for clustering
         for i in 0..n {
@@ -140,8 +143,7 @@ where
         } else {
             let v = vs.get(i).as_slice();
             let d: &mut [T] = &mut vector_buf;
-            d.copy_from_slice(v);
-            subtract_in(d, new_centroid);
+            subtract(v, new_centroid, d);
             let weight = dot(d, d);
             weights.push(weight);
         }
@@ -158,9 +160,8 @@ where
         for j in 0..n {
             if !chosen[j] {
                 let v = vs.get(j).as_slice();
-                let d: &mut [T] = &mut vector_buf;
-                d.copy_from_slice(v);
-                subtract_in(d, new_centroid);
+                let d: &mut [T] = &mut vector_buf[..];
+                subtract(v, new_centroid, d);
                 let new_weight = dot(d, d);
                 // updates the weight if it is smaller than the current one
                 if new_weight < weighted_index.get_weight(j) {
@@ -187,7 +188,10 @@ where
 {
     let m = vs.vector_size();
     let k = codebook.centroids.len();
-    let mut vector_buf: Vec<T> = vec![T::zero(); m];
+    let mut vector_buf: Vec<T> = Vec::with_capacity(m);
+    unsafe {
+        vector_buf.set_len(m);
+    }
     let mut max_distance = T::zero();
     let mut max_norm2 = T::zero();
     for i in 0..k {
@@ -232,15 +236,17 @@ where
     let n = vs.len();
     let m = vs.vector_size();
     let k = codebook.centroids.len();
-    let mut vector_buf: Vec<T> = vec![T::zero(); m];
+    let mut vector_buf: Vec<T> = Vec::with_capacity(m);
+    unsafe {
+        vector_buf.set_len(m);
+    }
     for i in 0..n {
         let v = vs.get(i).as_slice();
         let d = &mut vector_buf[..];
         let mut min_distance = T::infinity();
         let mut min_index: Option<usize> = None;
         for j in 0..k {
-            d.copy_from_slice(v);
-            subtract_in(d, codebook.centroids.get(j).as_slice());
+            subtract(v, codebook.centroids.get(j).as_slice(), d);
             let distance = dot(d, d);
             if distance < min_distance {
                 min_distance = distance;
