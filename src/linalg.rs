@@ -1,6 +1,6 @@
 //! Provides basic linear algebra operations.
 
-use core::ops::{AddAssign, Div, Mul, MulAssign, SubAssign};
+use core::ops::{AddAssign, Div, Mul, MulAssign, Sub, SubAssign};
 
 use crate::numbers::{Abs, One, Sqrt, Zero};
 
@@ -150,6 +150,16 @@ where
 {
     assert_eq!(ls.len(), rs.len());
     ls.iter_mut().zip(rs).for_each(|(l, r)| *l += *r);
+}
+
+/// Subtracts a vector from another vector.
+pub fn subtract<T>(ls: &[T], rs: &[T], out: &mut [T])
+where
+    T: Sub<Output = T> + Copy,
+{
+    assert_eq!(ls.len(), rs.len());
+    assert_eq!(ls.len(), out.len());
+    ls.iter().zip(rs).zip(out).for_each(|((l, r), o)| *o = *l - *r);
 }
 
 /// Subtracts a vector from another vector in place.
@@ -581,6 +591,33 @@ mod tests {
         let ys: &[f32] = &[];
         add_in(xs, ys);
         assert_eq!(xs, &[]);
+    }
+
+    #[test]
+    fn subtract_should_subtract_one_element_vectors() {
+        let xs: &[f32] = &[1.0];
+        let ys: &[f32] = &[2.0];
+        let mut out = [0.0f32];
+        subtract(xs, ys, &mut out);
+        assert_eq!(&out, &[-1.0]);
+    }
+
+    #[test]
+    fn subtract_should_subtract_three_element_vectors() {
+        let xs: &[f32] = &[0.0, -1.0, 2.0];
+        let ys: &[f32] = &[-1.0, 2.0, -3.0];
+        let mut out = [0.0f32; 3];
+        subtract(xs, ys, &mut out);
+        assert_eq!(&out, &[1.0, -3.0, 5.0]);
+    }
+
+    #[test]
+    fn subtract_should_work_with_empty_vectors() {
+        let xs: &[f32] = &[];
+        let ys: &[f32] = &[];
+        let mut out = [0.0f32; 0];
+        subtract(xs, ys, &mut out);
+        assert_eq!(&out, &[]);
     }
 
     #[test]
