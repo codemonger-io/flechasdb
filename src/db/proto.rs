@@ -201,9 +201,8 @@ impl Serialize<ProtosPartition> for Partition<f32> {
             let from = vi * d;
             let to = from + d;
             let mut encoded_vector = ProtosEncodedVector::new();
-            encoded_vector.index = vi as u32;
-            encoded_vector.code_indices.reserve(d);
-            encoded_vector.code_indices.extend(
+            encoded_vector.elements.reserve(d);
+            encoded_vector.elements.extend(
                 self.encoded_vectors[from..to].iter().map(|&c| c as u32),
             );
             partition.encoded_vectors.push(encoded_vector);

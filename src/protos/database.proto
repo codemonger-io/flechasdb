@@ -40,7 +40,7 @@ message CodebookRef {
 
 // Single partition.
 message Partition {
-  // Vector size.
+  // Vector size. Must match Database::vector_size.
   uint32 vector_size = 1;
   // Number of subvector divisions. Must match Database::num_divisions.
   uint32 num_divisions = 2;
@@ -71,12 +71,10 @@ message Codebook {
 
 // Encoded vector in a partition.
 message EncodedVector {
-  // Index of the vector. 0..Partition::num_vectors - 1.
-  uint32 index = 1;
   // Indices of the codes in the codebooks.
-  // Each elemtn specifies the code in the corresponding codebook.
+  // Each element specifies the code in the corresponding codebook.
   // Number of elements is given by Partition::num_divisions.
-  repeated uint32 code_indices = 2;
+  repeated uint32 elements = 1;
 }
 
 // Code vector.
