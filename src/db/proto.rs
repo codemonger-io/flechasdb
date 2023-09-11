@@ -1,10 +1,9 @@
 /// Serializes `Database` into a `protobuf::Message`.
 
 use core::iter::IntoIterator;
-use protobuf::CodedOutputStream;
 
 use crate::error::Error;
-use crate::io::{FileSystem, HashedFile};
+use crate::io::{FileSystem, HashedFileOut};
 use crate::kmeans::Codebook;
 use crate::protos::database::{
     CodeVector as ProtosCodeVector,
@@ -15,7 +14,7 @@ use crate::protos::database::{
     Partition as ProtosPartition,
     PartitionRef as ProtosPartitionRef,
 };
-use crate::protos::Serialize;
+use crate::protos::{Serialize, write_message};
 use crate::vector::VectorSet;
 use super::{Database, Partition};
 
@@ -117,18 +116,6 @@ where
     let mut f = fs.create_hashed_file_in("codebooks")?;
     write_message(&codebook, &mut f)?;
     f.persist(PROTOBUF_EXTENSION)
-}
-
-// Writes a message to a stream.
-fn write_message<M, W>(message: &M, out: &mut W) -> Result<(), Error>
-where
-    M: protobuf::Message,
-    W: std::io::Write,
-{
-    let mut writer = CodedOutputStream::new(out);
-    message.write_to(&mut writer)?;
-    writer.flush()?;
-    Ok(())
 }
 
 /// Serializable form of `Database`.
