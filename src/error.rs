@@ -3,6 +3,10 @@
 pub enum Error {
     /// Invalid arguments.
     InvalidArgs(String),
+    /// Invalid data.
+    InvalidData(String),
+    /// Verification has failed.
+    VerificationFailure(String),
     /// I/O error.
     IOError(std::io::Error),
     /// Error on `protobuf`.
@@ -13,7 +17,9 @@ impl Error {
     /// Converts into a string.
     pub fn to_string(self) -> String {
         match self {
-            Self::InvalidArgs(s) => s,
+            Self::InvalidArgs(s) |
+            Self::InvalidData(s) |
+            Self::VerificationFailure(s) => s,
             Self::IOError(e) => format!("I/O error: {}", e),
             Self::ProtobufError(e) => format!("Protobuf error: {}", e),
         }
