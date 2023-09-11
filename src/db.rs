@@ -12,6 +12,7 @@ use crate::slice::AsSlice;
 use crate::vector::{ VectorSet, divide_vector_set };
 
 pub mod proto;
+pub mod stored;
 
 /// Vector database builder.
 pub struct DatabaseBuilder<T, VS>
@@ -467,7 +468,7 @@ where
 pub struct QueryResult<T> {
     /// Partition index.
     pub partition_index: usize,
-    /// Vector ID. Must be unique accross the database.
+    /// Vector ID. Must be unique across the database.
     pub vector_id: Uuid,
     /// Vector index. Local index in the partition.
     pub vector_index: usize,
