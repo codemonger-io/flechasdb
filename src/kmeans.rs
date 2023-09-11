@@ -1,4 +1,4 @@
-use core::ops::{AddAssign, Div, Mul, MulAssign, SubAssign};
+use core::ops::{AddAssign, Div, Mul, MulAssign, Sub, SubAssign};
 use core::num::NonZeroUsize;
 use rand::Rng;
 use rand::distributions::Distribution;
@@ -42,6 +42,7 @@ pub trait Scalar:
     + Div<Output = Self>
     + Mul<Output = Self>
     + MulAssign
+    + Sub<Output = Self>
     + SubAssign
     + FromAs<usize>
     + PartialOrd
