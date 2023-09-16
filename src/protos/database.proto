@@ -19,6 +19,9 @@ message Database {
 
   // codebooks.
   repeated CodebookRef codebook_refs = 11;
+
+  // Reference to the attributes log.
+  string attributes_log_ref = 12;
 }
 
 // Reference to a partition.
@@ -67,6 +70,31 @@ message Codebook {
 
   // Codes. Number of elements is given by num_codes.
   repeated CodeVector codes = 10;
+}
+
+// Attribute value.
+message AttributeValue {
+  oneof value {
+    string string_value = 1;
+  }
+}
+
+// Log of attributes.
+message AttributesLog {
+  // Log entries.
+  // AttributesLog contains only "set" operations.
+  // If an attribute value is set multiple times, the last value is used.
+  repeated OperationSetAttribute entries = 1;
+}
+
+// Operation to set an attribute.
+message OperationSetAttribute {
+  // Vector ID.
+  Uuid vector_id = 1;
+  // Name of the attribute to set.
+  string name = 2;
+  // Value of the attribute to set.
+  AttributeValue value = 3;
 }
 
 // Encoded vector in a partition.

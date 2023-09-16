@@ -75,6 +75,7 @@ mod tests {
         assert_eq!(db.num_codes, 0);
         assert!(db.partition_refs.is_empty());
         assert!(db.codebook_refs.is_empty());
+        assert_eq!(db.attributes_log_ref, "");
     }
 
     #[test]
