@@ -1,20 +1,27 @@
 /// Serializes `Database` into a `protobuf::Message`.
 
 use core::iter::IntoIterator;
+use std::collections::HashMap;
+use uuid::Uuid;
 
+use crate::db::types::{AttributeValue, Attributes};
 use crate::error::Error;
 use crate::io::{FileSystem, HashedFileOut};
 use crate::kmeans::Codebook;
 use crate::protos::database::{
+    AttributeValue as ProtosAttributeValue,
+    AttributesLog as ProtosAttributesLog,
     CodeVector as ProtosCodeVector,
     Codebook as ProtosCodebook,
     CodebookRef as ProtosCodebookRef,
     Database as ProtosDatabase,
     EncodedVector as ProtosEncodedVector,
+    OperationSetAttribute as ProtosOperationSetAttribute,
     Partition as ProtosPartition,
     PartitionRef as ProtosPartitionRef,
+    attribute_value as protos_attribute_value,
 };
-use crate::protos::{Serialize, write_message};
+use crate::protos::{Deserialize, Serialize, write_message};
 use crate::vector::VectorSet;
 use super::{Database, Partition};
 
@@ -38,11 +45,15 @@ where
     let partition_ids = serialize_partitions(db.partitions(), fs)?;
     // serializes codebooks
     let codebook_ids = serialize_codebooks(&db.codebooks, fs)?;
+    // serializes attributes
+    let attributes_log_ref =
+        serialize_attribute_table(&db.attribute_table, fs)?;
     // serializes the database
     let db = DatabaseSerialize {
         database: db,
         partition_ids,
         codebook_ids,
+        attributes_log_ref,
     };
     let db = db.serialize()?;
     let mut f = fs.create_hashed_file()?;
@@ -118,6 +129,29 @@ where
     f.persist(PROTOBUF_EXTENSION)
 }
 
+// Serializes an attribute table.
+fn serialize_attribute_table<FS>(
+    attribute_table: &HashMap<Uuid, Attributes>,
+    fs: &mut FS,
+) -> Result<String, Error>
+where
+    FS: FileSystem,
+{
+    let mut attributes_log = ProtosAttributesLog::new();
+    for (id, attributes) in attribute_table.iter() {
+        for (name, value) in attributes.iter() {
+            let mut set_attribute = ProtosOperationSetAttribute::new();
+            set_attribute.vector_id = Some(id.serialize()?).into();
+            set_attribute.name = name.clone();
+            set_attribute.value = Some(value.serialize()?).into();
+            attributes_log.entries.push(set_attribute);
+        }
+    }
+    let mut f = fs.create_hashed_file_in("attributes")?;
+    write_message(&attributes_log, &mut f)?;
+    f.persist(PROTOBUF_EXTENSION)
+}
+
 /// Serializable form of `Database`.
 pub struct DatabaseSerialize<'a, T, VS>
 where
@@ -126,6 +160,7 @@ where
     database: &'a Database<T, VS>,
     partition_ids: Vec<String>,
     codebook_ids: Vec<String>,
+    attributes_log_ref: String,
 }
 
 impl<'a, T, VS> core::ops::Deref for DatabaseSerialize<'a, T, VS>
@@ -167,6 +202,7 @@ where
                 codebook_ref
             }),
         );
+        db.attributes_log_ref = self.attributes_log_ref.clone();
         Ok(db)
     }
 }
@@ -213,5 +249,33 @@ impl Serialize<ProtosCodebook> for Codebook<f32> {
             codebook.codes.push(code);
         }
         Ok(codebook)
+    }
+}
+
+impl Serialize<ProtosAttributeValue> for AttributeValue {
+    fn serialize(&self) -> Result<ProtosAttributeValue, Error> {
+        let mut value = ProtosAttributeValue::new();
+        match self {
+            AttributeValue::String(s) => {
+                value.value = Some(
+                    protos_attribute_value::Value::StringValue(s.clone()),
+                );
+            }
+        };
+        Ok(value)
+    }
+}
+
+impl Deserialize<AttributeValue> for ProtosAttributeValue {
+    fn deserialize(self) -> Result<AttributeValue, Error> {
+        if let Some(value) = self.value {
+            match value {
+                protos_attribute_value::Value::StringValue(s) => {
+                    Ok(AttributeValue::String(s))
+                },
+            }
+        } else {
+            Err(Error::InvalidData(format!("missing attribute value")))
+        }
     }
 }
