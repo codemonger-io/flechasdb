@@ -49,7 +49,7 @@ fn generate() -> Result<(), Error> {
     // builds a vector database
     let time = std::time::Instant::now();
     let mut event_time = std::time::Instant::now();
-    let db = DatabaseBuilder::new(vs)
+    let mut db = DatabaseBuilder::new(vs)
         .with_partitions(P.try_into().unwrap())
         .with_divisions(D.try_into().unwrap())
         .with_clusters(C.try_into().unwrap())
@@ -89,6 +89,10 @@ fn generate() -> Result<(), Error> {
             };
         }))?;
     println!("built database in {} μs", time.elapsed().as_micros());
+    // sets attributes
+    for i in 0..N {
+        db.set_attribute_at(i, ("datum_id", format!("{}", i)))?;
+    }
     // creates a random query vector
     let qv = random_query_vector(&mut rng, M);
     // queries k-NN
@@ -190,7 +194,8 @@ where
     )?;
     println!("queried k-NN in {} μs", time.elapsed().as_micros());
     for (i, result) in results.iter().enumerate() {
-        println!("{}: {:?}", i, result);
+        let datum_id = db.get_attribute(&result.vector_id, "datum_id")?;
+        println!("{}: datum_id={:?}, {:?}", i, datum_id, result);
     }
     Ok(())
 }
