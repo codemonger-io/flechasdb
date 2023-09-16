@@ -13,6 +13,7 @@ use crate::vector::{ VectorSet, divide_vector_set };
 
 pub mod proto;
 pub mod stored;
+pub mod types;
 
 /// Vector database builder.
 pub struct DatabaseBuilder<T, VS>
