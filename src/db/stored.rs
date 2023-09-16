@@ -1,15 +1,21 @@
 //! Defines a stored database.
 
+use core::borrow::Borrow;
 use core::cell::{Ref, RefCell};
+use core::hash::Hash;
 use core::num::NonZeroUsize;
+use std::collections::HashMap;
+use std::collections::hash_map::{Entry as HashMapEntry};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
+use crate::db::types::{Attributes, AttributeValue};
 use crate::error::Error;
 use crate::io::{FileSystem, HashedFileIn};
 use crate::kmeans::Scalar;
 use crate::linalg::{dot, subtract};
 use crate::protos::database::{
+    AttributesLog as ProtosAttributesLog,
     Codebook as ProtosCodebook,
     Database as ProtosDatabase,
     Partition as ProtosPartition,
@@ -46,9 +52,14 @@ pub struct Database<T, FS> {
     partition_centroids: Vec<T>, // num_partitions × vector_size.
     codebook_ids: Vec<String>,
     codebooks: RefCell<Option<Vec<Codebook<T>>>>,
+    attributes_log_ref: String,
+    attribute_table: RefCell<Option<AttributeTable>>,
 }
 
-impl<T, FS> Database<T, FS> {
+impl<T, FS> Database<T, FS>
+where
+    FS: FileSystem,
+{
     /// Returns the vector size.
     pub fn vector_size(&self) -> usize {
         self.vector_size
@@ -100,7 +111,83 @@ impl<T, FS> Database<T, FS> {
     pub fn get_codebook_id(&self, index: usize) -> Option<&String> {
         self.codebook_ids.get(index)
     }
+
+    /// Returns an attribute value of a given vector.
+    ///
+    /// Fails if no vector is associated with `id`.
+    ///
+    /// `None` if the vector exists but no value is associated with `key`.
+    pub fn get_attribute<K>(
+        &self,
+        id: &Uuid,
+        key: &K,
+    ) -> Result<Option<AttributeValueRef>, Error>
+    where
+        String: Borrow<K>,
+        K: Hash + Eq + ?Sized,
+    {
+        if self.attribute_table.borrow().is_none() {
+            let time = std::time::Instant::now();
+            self.load_attribute_table()?;
+            println!("loaded attribute table in {} μs", time.elapsed().as_micros());
+        }
+        let attribute_table = Ref::filter_map(
+            self.attribute_table.borrow(),
+            |tbl| tbl.as_ref(),
+        ).expect("attribute table must be loaded");
+        let attributes = Ref::filter_map(
+            attribute_table,
+            |tbl| tbl.get(id),
+        ).or(Err(Error::InvalidArgs(format!("no such vector ID: {}", id))))?;
+        match Ref::filter_map(attributes, |attrs| attrs.get(key)) {
+            Ok(value) => Ok(Some(value)),
+            Err(_) => Ok(None),
+        }
+    }
+
+    fn load_attribute_table(&self) -> Result<(), Error> {
+        let mut path = PathBuf::from("attributes");
+        path.push(&self.attributes_log_ref);
+        path.set_extension(PROTOBUF_EXTENSION);
+        let mut f = self.fs.open_hashed_file(path)?;
+        let attributes_log: ProtosAttributesLog = read_message(&mut f)?;
+        let mut attribute_table: AttributeTable = AttributeTable::new();
+        for (i, entry) in attributes_log.entries.into_iter().enumerate() {
+            let vector_id = entry.vector_id
+                .into_option()
+                .ok_or(Error::InvalidData(
+                    format!("attributes log[{}]: missing vector ID", i),
+                ))?
+                .deserialize()?;
+            let value = entry.value
+                .into_option()
+                .ok_or(Error::InvalidData(
+                    format!("attributes log[{}]: missing value", i),
+                ))?
+                .deserialize()?;
+            match attribute_table.entry(vector_id) {
+                HashMapEntry::Occupied(slot) => {
+                    match slot.into_mut().entry(entry.name) {
+                        HashMapEntry::Occupied(slot) => {
+                            *slot.into_mut() = value;
+                        },
+                        HashMapEntry::Vacant(slot) => {
+                            slot.insert(value);
+                        },
+                    };
+                },
+                HashMapEntry::Vacant(slot) => {
+                    slot.insert(Attributes::from([(entry.name, value)]));
+                },
+            };
+        }
+        self.attribute_table.replace(Some(attribute_table));
+        Ok(())
+    }
 }
+
+/// Reference type of an attribute value.
+pub type AttributeValueRef<'a> = Ref<'a, AttributeValue>;
 
 impl<FS> LoadPartition<f32> for Database<f32, FS>
 where
@@ -128,9 +215,9 @@ where
                 self.num_partitions,
             )));
         }
-        let path = PathBuf::from("partitions")
-            .join(self.get_partition_id(index).unwrap())
-            .with_extension(PROTOBUF_EXTENSION);
+        let mut path = PathBuf::from("partitions");
+        path.push(self.get_partition_id(index).unwrap());
+        path.set_extension(PROTOBUF_EXTENSION);
         let mut f = self.fs.open_hashed_file(path)?;
         let partition: ProtosPartition = read_message(&mut f)?;
         f.verify()?;
@@ -261,6 +348,7 @@ where
 impl<T, FS> Database<T, FS>
 where
     T: Scalar,
+    FS: FileSystem,
     Self: LoadPartition<T> + LoadCodebook<T>,
 {
     /// Queries k-nearest neighbors (k-NN) of a given vector.
@@ -451,6 +539,8 @@ where
             partition_centroids,
             codebook_ids,
             codebooks: RefCell::new(None),
+            attributes_log_ref: db.attributes_log_ref,
+            attribute_table: RefCell::new(None),
         };
         Ok(db)
     }
@@ -537,6 +627,9 @@ pub trait LoadCodebook<T> {
     fn load_codebook(&self, index: usize) -> Result<Codebook<T>, Error>;
 }
 
+/// Attribute table.
+pub type AttributeTable = HashMap<Uuid, Attributes>;
+
 /// Events emitted while querying.
 pub enum DatabaseQueryEvent {
     StartingPartitionSelection,
@@ -558,6 +651,7 @@ struct PartitionQuery<'a, T, FS> {
 impl<'a, T, FS> PartitionQuery<'a, T, FS>
 where
     T: Scalar,
+    FS: FileSystem,
     Database<T, FS>: LoadPartition<T> + LoadCodebook<T>,
 {
     fn execute(&self) -> Result<Vec<QueryResult<T>>, Error> {
