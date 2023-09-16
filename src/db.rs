@@ -1,7 +1,11 @@
 //! Vector database.
 
+use core::borrow::Borrow;
+use core::hash::Hash;
 use core::iter::{IntoIterator, Iterator};
 use core::num::NonZeroUsize;
+use std::collections::HashMap;
+use std::collections::hash_map::{Entry as HashMapEntry};
 use uuid::Uuid;
 
 use crate::error::Error;
@@ -14,6 +18,8 @@ use crate::vector::{ VectorSet, divide_vector_set };
 pub mod proto;
 pub mod stored;
 pub mod types;
+
+use types::{Attributes, AttributeValue};
 
 /// Vector database builder.
 pub struct DatabaseBuilder<T, VS>
@@ -118,6 +124,7 @@ where
             vector_ids,
             partitions,
             codebooks,
+            attribute_table: HashMap::new(),
         })
     }
 }
@@ -153,6 +160,8 @@ where
     partitions: Partitions<T, VS>,
     // Codebooks for PQ.
     codebooks: Vec<Codebook<T>>,
+    // Attributes associated with vectors.
+    attribute_table: HashMap<Uuid, Attributes>,
 }
 
 impl<T, VS> Database<T, VS>
@@ -184,12 +193,79 @@ where
         self.num_clusters
     }
 
+    /// Returns an iterator of vector IDs.
+    pub fn vector_ids(&self) -> impl Iterator<Item = &Uuid> {
+        self.vector_ids.iter()
+    }
+
     /// Returns an iterator of partitions.
     pub fn partitions(&self) -> PartitionIter<'_, T, VS> {
         PartitionIter {
             database: self,
             next_index: 0,
         }
+    }
+
+    /// Returns the attribute value of a given vector.
+    ///
+    /// Fails if no vector is associated with `id`.
+    pub fn get_attribute<K>(
+        &self,
+        id: &Uuid,
+        key: &K,
+    ) -> Result<Option<&AttributeValue>, Error>
+    where
+        String: Borrow<K>,
+        K: Hash + Eq + ?Sized,
+    {
+        Ok(
+            self.attribute_table
+                .get(id)
+                .ok_or(Error::InvalidArgs(
+                    format!("no such vector ID: {}", id),
+                ))?
+                .get(key),
+            )
+    }
+
+    /// Sets an attribute value for the i-th vector.
+    ///
+    /// Replaces with the new value if the vector already has the attribute.
+    ///
+    /// Fails if `i` is out of bounds.
+    pub fn set_attribute_at<KV, KEY, VAL>(
+        &mut self,
+        i: usize,
+        attribute: KV,
+    ) -> Result<(), Error>
+    where
+        KV: Into<(KEY, VAL)>,
+        KEY: Into<String>,
+        VAL: Into<AttributeValue>,
+    {
+        let id = self.vector_ids.get(i)
+            .ok_or(Error::InvalidArgs(
+                format!("vector index out of bounds: {}", i),
+            ))?;
+        let (key, value) = attribute.into();
+        let key = key.into();
+        let value = value.into();
+        if let Some(attributes) = self.attribute_table.get_mut(id) {
+            match attributes.entry(key.into()) {
+                HashMapEntry::Occupied(entry) => {
+                    *entry.into_mut() = value.into();
+                },
+                HashMapEntry::Vacant(entry) => {
+                    entry.insert(value.into());
+                },
+            };
+        } else {
+            self.attribute_table.insert(
+                id.clone(),
+                Attributes::from([(key, value)]),
+            );
+        }
+        Ok(())
     }
 }
 
