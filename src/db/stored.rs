@@ -56,6 +56,7 @@ pub struct Database<T, FS> {
     codebook_ids: Vec<String>,
     codebooks: RefCell<Option<Vec<Codebook<T>>>>,
     attributes_log_ids: Vec<String>,
+    attributes_log_load_flags: RefCell<Vec<bool>>,
     attribute_table: RefCell<Option<AttributeTable>>,
 }
 
@@ -104,9 +105,14 @@ where
 
     /// Returns an attribute value of a given vector.
     ///
-    /// Fails if no vector is associated with `id`.
+    /// The first call to this function will take longer because it loads all
+    /// the attributes.
+    /// If you want to get attributes of your query results, please use
+    /// `get_attribute_of` instead.
     ///
     /// `None` if the vector exists but no value is associated with `key`.
+    ///
+    /// Fails if no vector is associated with `id`.
     pub fn get_attribute<K>(
         &self,
         id: &Uuid,
@@ -117,10 +123,55 @@ where
         K: Hash + Eq + ?Sized,
     {
         if self.attribute_table.borrow().is_none() {
-            let time = std::time::Instant::now();
             self.load_attribute_table()?;
-            println!("loaded attribute table in {} μs", time.elapsed().as_micros());
         }
+        self.get_attribute_no_loading(id, key)
+    }
+
+    /// Returns an attribute value of a given vector.
+    ///
+    /// This function will be more efficient if you have a query result.
+    ///
+    /// `None` if no value is associated with `key`.
+    ///
+    /// Fails if a query result is not from this database.
+    pub fn get_attribute_of<K>(
+        &self,
+        query_result: &QueryResult<T>,
+        key: &K,
+    ) -> Result<Option<AttributeValueRef>, Error>
+    where
+        String: Borrow<K>,
+        K: Hash + Eq + ?Sized,
+    {
+        let partition_index = query_result.partition_index;
+        if self.partition_ids[partition_index] != query_result.partition_id {
+            return Err(Error::InvalidArgs(format!(
+                "incompatible patition: expected {} but got {}",
+                self.partition_ids[partition_index],
+                query_result.partition_id,
+            )));
+        }
+        if self.attributes_log_ids[partition_index] != query_result.attributes_log_id {
+            return Err(Error::InvalidArgs(format!(
+                "incompatible attributes log: expected {} but got {}",
+                self.attributes_log_ids[partition_index],
+                query_result.attributes_log_id,
+            )));
+        }
+        self.load_attributes_log(partition_index)?;
+        self.get_attribute_no_loading(&query_result.vector_id, key)
+    }
+
+    fn get_attribute_no_loading<K>(
+        &self,
+        id: &Uuid,
+        key: &K,
+    ) -> Result<Option<AttributeValueRef>, Error>
+    where
+        String: Borrow<K>,
+        K: Hash + Eq + ?Sized,
+    {
         let attribute_table = Ref::filter_map(
             self.attribute_table.borrow(),
             |tbl| tbl.as_ref(),
@@ -142,7 +193,12 @@ where
         Ok(())
     }
 
+    // Loads the attributes log of a specified partition if it is not loaded
+    // yet.
     fn load_attributes_log(&self, partition_index: usize) -> Result<(), Error> {
+        if self.attributes_log_load_flags.borrow()[partition_index] {
+            return Ok(());
+        }
         let mut path = PathBuf::from("attributes");
         path.push(&self.attributes_log_ids[partition_index]);
         path.set_extension(PROTOBUF_EXTENSION);
@@ -195,6 +251,7 @@ where
                 },
             };
         }
+        self.attributes_log_load_flags.borrow_mut()[partition_index] = true;
         Ok(())
     }
 }
@@ -378,7 +435,7 @@ where
 {
     /// Queries k-nearest neighbors (k-NN) of a given vector.
     ///
-    /// The first call for this function may take longer because it lazily
+    /// The first call to this function will take longer because it lazily
     /// loads partition centroids, and codebooks.
     pub fn query<V, EventHandler>(
         &self,
@@ -560,6 +617,8 @@ where
             codebook_ids: db.codebook_ids,
             codebooks: RefCell::new(None),
             attributes_log_ids: db.attributes_log_ids,
+            attributes_log_load_flags:
+                RefCell::new(vec![false; num_partitions]),
             attribute_table: RefCell::new(None),
         };
         Ok(db)
@@ -724,6 +783,10 @@ where
                 vector_id: partition.get_vector_id(vi).unwrap().clone(),
                 vector_index: vi,
                 squared_distance: distance,
+                partition_id:
+                    self.database.partition_ids[self.partition_index].clone(),
+                attributes_log_id:
+                    self.database.attributes_log_ids[self.partition_index].clone(),
             });
         }
         Ok(results)
@@ -741,4 +804,7 @@ pub struct QueryResult<T> {
     pub vector_index: usize,
     /// Approximate squared distance.
     pub squared_distance: T,
+    // for verification
+    partition_id: String,
+    attributes_log_id: String,
 }
