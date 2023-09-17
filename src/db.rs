@@ -9,11 +9,11 @@ use std::collections::hash_map::{Entry as HashMapEntry};
 use uuid::Uuid;
 
 use crate::error::Error;
-use crate::kmeans::{ Codebook, Scalar, cluster };
-use crate::linalg::{ dot, subtract_in };
+use crate::kmeans::{Codebook, Scalar, cluster};
+use crate::linalg::{dot, subtract_in};
 use crate::partitions::{ Partitioning, Partitions };
 use crate::slice::AsSlice;
-use crate::vector::{ VectorSet, divide_vector_set };
+use crate::vector::{BlockVectorSet, VectorSet, divide_vector_set};
 
 pub mod proto;
 pub mod stored;
@@ -389,12 +389,10 @@ where
 
 /// Partition in a database.
 pub struct Partition<T> {
-    // Number of subvector divisions.
-    num_divisions: usize,
     // Centroid of the partition.
     pub centroid: Vec<T>,
     // Encoded vectors.
-    pub encoded_vectors: Vec<u32>,
+    pub encoded_vectors: BlockVectorSet<u32>,
     // Vector IDs.
     pub vector_ids: Vec<Uuid>,
 }
@@ -407,12 +405,12 @@ impl<T> Partition<T> {
 
     /// Returns the number of subvector divisions.
     pub fn num_divisions(&self) -> usize {
-        self.num_divisions
+        self.encoded_vectors.vector_size()
     }
 
     /// Returns the number of vectors.
     pub fn num_vectors(&self) -> usize {
-        self.encoded_vectors.len() / self.num_divisions
+        self.encoded_vectors.len()
     }
 }
 
@@ -429,19 +427,20 @@ where
         centroid.extend_from_slice(
             db.partitions.codebook.centroids.get(index),
         );
+        let num_divisions = db.num_divisions();
         let num_vectors = db.partitions.codebook.indices
             .iter()
             .filter(|&&pi| pi == index)
             .count();
         let mut encoded_vectors: Vec<u32> =
-            Vec::with_capacity(num_vectors * db.num_divisions());
+            Vec::with_capacity(num_vectors * num_divisions);
         let mut vector_ids: Vec<Uuid> = Vec::with_capacity(num_vectors);
         for (vi, _) in db.partitions.codebook.indices
             .iter()
             .enumerate()
             .filter(|(_, &pi)| pi == index)
         {
-            for di in 0..db.num_divisions() {
+            for di in 0..num_divisions {
                 encoded_vectors.push(
                     db.codebooks[di].indices[vi].try_into().unwrap(),
                 );
@@ -449,9 +448,11 @@ where
             vector_ids.push(db.vector_ids[vi]);
         }
         Partition {
-            num_divisions: db.num_divisions(),
             centroid,
-            encoded_vectors,
+            encoded_vectors: BlockVectorSet::chunk(
+                encoded_vectors,
+                num_divisions.try_into().unwrap(),
+            ).unwrap(),
             vector_ids,
         }
     }

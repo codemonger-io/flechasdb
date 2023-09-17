@@ -213,7 +213,12 @@ where
         f.verify()?;
         let vector_size = partition.vector_size as usize;
         let num_divisions = partition.num_divisions as usize;
-        let num_vectors = partition.encoded_vectors.len();
+        let encoded_vectors: BlockVectorSet<u32> = partition.encoded_vectors
+                .into_option()
+                .ok_or(Error::InvalidData(
+                    "missing encoded vectors".to_string(),
+                ))?
+                .deserialize()?;
         if vector_size != self.vector_size() {
             return Err(Error::InvalidData(format!(
                 "vector_size {} and partition.vector_size {} do not match",
@@ -228,35 +233,19 @@ where
                 num_divisions,
             )));
         }
-        if num_vectors != partition.vector_ids.len() {
+        if encoded_vectors.len() != partition.vector_ids.len() {
             return Err(Error::InvalidData(format!(
                 "number of vector IDs is inconsistent: exptected {} but got {}",
-                num_vectors,
+                encoded_vectors.len(),
                 partition.vector_ids.len(),
             )));
         }
-        // lodas encoded vectors.
-        let mut encoded_vectors: Vec<u32> =
-            Vec::with_capacity(num_vectors * num_divisions);
-        for encoded_vector in partition.encoded_vectors.into_iter() {
-            if encoded_vector.elements.len() != num_divisions {
-                return Err(Error::InvalidData(format!(
-                    "num_divisions {} and encoded vector length {} do not match",
-                    num_divisions,
-                    encoded_vector.elements.len(),
-                )));
-            }
-            encoded_vectors.extend(encoded_vector.elements);
-        }
-        // loads vector IDs 
         let vector_ids: Vec<Uuid> = partition.vector_ids
             .into_iter()
             .map(|id| id.deserialize().unwrap())
             .collect();
         Ok(Partition {
             _t: std::marker::PhantomData,
-            num_divisions,
-            num_vectors,
             encoded_vectors,
             vector_ids,
         })
@@ -560,26 +549,22 @@ where
 /// because the database manages centroids.
 pub struct Partition<T> {
     _t: std::marker::PhantomData<T>,
-    num_divisions: usize,
-    num_vectors: usize,
-    encoded_vectors: Vec<u32>, // num_vectors × num_divisions
+    encoded_vectors: BlockVectorSet<u32>,
     vector_ids: Vec<Uuid>,
 }
 
 impl<T> Partition<T> {
     /// Returns the number of vectors in the partition.
     pub fn num_vectors(&self) -> usize {
-        self.num_vectors
+        self.encoded_vectors.len()
     }
 
     /// Returns a specified encoded vector.
     ///
     /// `None` if `idnex` ≥ `num_vectors`.
     pub fn get_encoded_vector(&self, index: usize) -> Option<&[u32]> {
-        if index < self.num_vectors {
-            let from = index * self.num_divisions;
-            let to = from + self.num_divisions;
-            Some(&self.encoded_vectors[from..to])
+        if index < self.encoded_vectors.len() {
+            Some(self.encoded_vectors.get(index))
         } else {
             None
         }

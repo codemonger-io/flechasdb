@@ -14,7 +14,7 @@ use crate::protos::database::{
     Vector as ProtosVector,
     Codebook as ProtosCodebook,
     Database as ProtosDatabase,
-    EncodedVector as ProtosEncodedVector,
+    EncodedVectorSet as ProtosEncodedVectorSet,
     OperationSetAttribute as ProtosOperationSetAttribute,
     Partition as ProtosPartition,
     VectorSet as ProtosVectorSet,
@@ -217,26 +217,18 @@ where
 impl Serialize<ProtosPartition> for Partition<f32> {
     fn serialize(&self) -> Result<ProtosPartition, Error> {
         let mut partition = ProtosPartition::new();
-        let n = self.num_vectors();
         let m = self.vector_size();
         let d = self.num_divisions();
         partition.vector_size = m as u32;
         partition.num_divisions = d as u32;
         partition.centroid.reserve(m);
         partition.centroid.extend_from_slice(&self.centroid[..]);
-        partition.encoded_vectors.reserve(n);
-        partition.vector_ids.reserve(n);
-        for vi in 0..self.num_vectors() {
-            let from = vi * d;
-            let to = from + d;
-            let mut encoded_vector = ProtosEncodedVector::new();
-            encoded_vector.elements.reserve(d);
-            encoded_vector.elements.extend(
-                self.encoded_vectors[from..to].iter().map(|&c| c as u32),
-            );
-            partition.encoded_vectors.push(encoded_vector);
-            partition.vector_ids.push(self.vector_ids[vi].serialize()?);
-        }
+        partition.vector_ids = self.vector_ids
+            .iter()
+            .map(|id| id.serialize())
+            .collect::<Result<_, _>>()?;
+        partition.encoded_vectors =
+            Some(self.encoded_vectors.serialize()?).into();
         Ok(partition)
     }
 }
@@ -269,6 +261,28 @@ impl Serialize<ProtosVectorSet> for BlockVectorSet<f32> {
 
 impl Deserialize<BlockVectorSet<f32>> for ProtosVectorSet {
     fn deserialize(self) -> Result<BlockVectorSet<f32>, Error> {
+        BlockVectorSet::chunk(
+            self.data,
+            (self.vector_size as usize)
+                .try_into()
+                .or(Err(Error::InvalidData(
+                    "vector size must not be zero".to_string(),
+                )))?,
+        )
+    }
+}
+
+impl Serialize<ProtosEncodedVectorSet> for BlockVectorSet<u32> {
+    fn serialize(&self) -> Result<ProtosEncodedVectorSet, Error> {
+        let mut vs = ProtosEncodedVectorSet::new();
+        vs.vector_size = self.vector_size() as u32;
+        vs.data = self.data.clone();
+        Ok(vs)
+    }
+}
+
+impl Deserialize<BlockVectorSet<u32>> for ProtosEncodedVectorSet {
+    fn deserialize(self) -> Result<BlockVectorSet<u32>, Error> {
         BlockVectorSet::chunk(
             self.data,
             (self.vector_size as usize)
