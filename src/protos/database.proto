@@ -49,7 +49,7 @@ message Partition {
 
   // Encoded vectors.
   // Each vector must have num_divisions elements.
-  repeated EncodedVector encoded_vectors = 11;
+  EncodedVectorSet encoded_vectors = 11;
 
   // Vector IDs. Must be unique across the database.
   repeated Uuid vector_ids = 12;
@@ -77,6 +77,17 @@ message VectorSet {
   repeated float data = 10;
 }
 
+// Encoded vector set.
+message EncodedVectorSet {
+  // Vector size. Must match vector_size of the container.
+  uint32 vector_size = 1;
+
+  // Elements of all the vectors.
+  // i-th vector is given by:
+  //   data[i * vector_size..(i + 1) * vector_size]
+  repeated uint32 data = 10;
+}
+
 // Attribute value.
 message AttributeValue {
   oneof value {
@@ -100,14 +111,6 @@ message OperationSetAttribute {
   string name = 2;
   // Value of the attribute to set.
   AttributeValue value = 3;
-}
-
-// Encoded vector in a partition.
-message EncodedVector {
-  // Indices of the codes in the codebooks.
-  // Each element specifies the code in the corresponding codebook.
-  // Number of elements is given by Partition::num_divisions.
-  repeated uint32 elements = 1;
 }
 
 // Vector.

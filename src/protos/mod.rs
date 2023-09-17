@@ -85,7 +85,7 @@ mod tests {
         assert_eq!(partition.vector_size, 0);
         assert_eq!(partition.num_divisions, 0);
         assert!(partition.centroid.is_empty());
-        assert!(partition.encoded_vectors.is_empty());
+        assert!(partition.encoded_vectors.is_none());
         assert!(partition.vector_ids.is_empty());
     }
 
