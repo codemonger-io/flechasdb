@@ -14,10 +14,7 @@ use crate::vector::{BlockVectorSet, VectorSet};
 /// Partitions.
 ///
 /// Moves the input vector set to save memory.
-pub struct Partitions<T, VS>
-where
-    VS: VectorSet<T>,
-{
+pub struct Partitions<T, VS> {
     // Codebook of the partition.
     pub codebook: Codebook<T>,
     // Residue vector set.
