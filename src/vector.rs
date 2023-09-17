@@ -79,6 +79,18 @@ impl<T> BlockVectorSet<T> {
     }
 }
 
+impl<T> Clone for BlockVectorSet<T>
+where
+    T: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            data: self.data.clone(),
+            vector_size: self.vector_size,
+        }
+    }
+}
+
 impl<T> VectorSet<T> for BlockVectorSet<T> {
     type Vector = [T];
 
