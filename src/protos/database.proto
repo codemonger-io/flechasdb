@@ -17,11 +17,15 @@ message Database {
   // Actual data are separately loaded.
   repeated PartitionRef partition_refs = 10;
 
-  // codebooks.
-  repeated CodebookRef codebook_refs = 11;
+  // Centroids of partitions.
+  // ID of the VectorSet containing centroids.
+  string partition_centroids_ref = 11;
+
+  // Codebook references.
+  repeated CodebookRef codebook_refs = 12;
 
   // Reference to the attributes log.
-  string attributes_log_ref = 12;
+  string attributes_log_ref = 13;
 }
 
 // Reference to a partition.
@@ -29,9 +33,6 @@ message PartitionRef {
   // ID of the partition. Supposed to be the URL-safe Base64-encoded SHA-256
   // digest of the entire partition.
   string id = 1;
-  // Centroid of the partition.
-  // Number of elements is given by Database::vector_size
-  repeated float centroid = 2;
 }
 
 // Reference to a codebook.
@@ -69,7 +70,18 @@ message Codebook {
   uint32 num_codes = 2;
 
   // Codes. Number of elements is given by num_codes.
-  repeated CodeVector codes = 10;
+  repeated Vector codes = 10;
+}
+
+// Vector set.
+message VectorSet {
+  // Vector size. Must match vector_size of the container.
+  uint32 vector_size = 1;
+
+  // Elements of all the vectors.
+  // i-th vector is given by:
+  //   data[i * vector_size..(i + 1) * vector_size]
+  repeated float data = 10;
 }
 
 // Attribute value.
@@ -105,9 +117,10 @@ message EncodedVector {
   repeated uint32 elements = 1;
 }
 
-// Code vector.
-message CodeVector {
-  // Vector elements. Number of elements is given by Codebook::vector_size.
+// Vector.
+message Vector {
+  // Vector elements.
+  // Number of elements must match vector_size of the container.
   repeated float elements = 1;
 }
 
