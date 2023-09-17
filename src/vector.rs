@@ -23,7 +23,7 @@ pub trait VectorSet<T> {
 /// Vectors in a contiguous array.
 #[derive(Debug)]
 pub struct BlockVectorSet<T> {
-    data: Vec<T>,
+    pub data: Vec<T>,
 
     /// Vector size.
     pub vector_size: usize,
@@ -52,6 +52,25 @@ impl<T> BlockVectorSet<T> {
         }
     }
 
+    /// Returns the number of vectors in the vector set.
+    pub fn len(&self) -> usize {
+        self.data.len() / self.vector_size
+    }
+
+    /// Returns the size of each vector in the vector set.
+    pub fn vector_size(&self) -> usize {
+        self.vector_size
+    }
+
+    /// Returns the i-th vector in the vector set.
+    ///
+    /// Panics if `i` is out of bounds.
+    pub fn get(&self, i: usize) -> &[T] {
+        let from = i * self.vector_size;
+        let to = from + self.vector_size;
+        &self.data[from..to]
+    }
+
     /// Returns the mutable i-th vector.
     pub fn get_mut(&mut self, i: usize) -> &mut [T] {
         let from = i * self.vector_size;
@@ -64,17 +83,15 @@ impl<T> VectorSet<T> for BlockVectorSet<T> {
     type Vector = [T];
 
     fn len(&self) -> usize {
-        self.data.len() / self.vector_size
+        self.len()
     }
 
     fn vector_size(&self) -> usize {
-        self.vector_size
+        self.vector_size()
     }
 
     fn get(&self, i: usize) -> &Self::Vector {
-        let from = i * self.vector_size;
-        let to = from + self.vector_size;
-        &self.data[from..to]
+        self.get(i)
     }
 }
 
