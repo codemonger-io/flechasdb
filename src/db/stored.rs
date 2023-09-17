@@ -1,7 +1,7 @@
 //! Defines a stored database.
 
 use core::borrow::Borrow;
-use core::cell::{Ref, RefCell};
+use core::cell::{OnceCell, Ref, RefCell};
 use core::hash::Hash;
 use core::num::NonZeroUsize;
 use std::collections::HashMap;
@@ -19,9 +19,11 @@ use crate::protos::database::{
     Codebook as ProtosCodebook,
     Database as ProtosDatabase,
     Partition as ProtosPartition,
+    VectorSet as ProtosVectorSet,
 };
 use crate::protos::{Deserialize, read_message};
 use crate::slice::AsSlice;
+use crate::vector::BlockVectorSet;
 
 pub const PROTOBUF_EXTENSION: &str = "binpb";
 
@@ -49,7 +51,8 @@ pub struct Database<T, FS> {
     num_divisions: usize,
     num_codes: usize,
     partition_ids: Vec<String>,
-    partition_centroids: Vec<T>, // num_partitions × vector_size.
+    partition_centroids_ref: String,
+    partition_centroids: OnceCell<BlockVectorSet<T>>,
     codebook_ids: Vec<String>,
     codebooks: RefCell<Option<Vec<Codebook<T>>>>,
     attributes_log_ref: String,
@@ -90,19 +93,6 @@ where
     /// `None` if `index` ≥ `num_partitions`.
     pub fn get_partition_id(&self, index: usize) -> Option<&String> {
         self.partition_ids.get(index)
-    }
-
-    /// Returns the centroid of a partition.
-    ///
-    /// `None` if `index` ≥ `num_partitions`.
-    pub fn get_partition_centroid(&self, index: usize) -> Option<&[T]> {
-        if index < self.num_partitions {
-            let from = index * self.vector_size;
-            let to = from + self.vector_size;
-            Some(&self.partition_centroids[from..to])
-        } else {
-            None
-        }
     }
 
     /// Returns a code vector in a specified division.
@@ -345,13 +335,46 @@ where
     }
 }
 
+impl<FS> LoadPartitionCentroids<f32> for Database<f32, FS>
+where
+    FS: FileSystem,
+{
+    fn load_partition_centroids(&self) -> Result<BlockVectorSet<f32>, Error> {
+        let mut path = PathBuf::from("partitions");
+        path.push(&self.partition_centroids_ref);
+        path.set_extension(PROTOBUF_EXTENSION);
+        let mut f = self.fs.open_hashed_file(path)?;
+        let partition_centroids: ProtosVectorSet = read_message(&mut f)?;
+        let partition_centroids: BlockVectorSet<f32> =
+            partition_centroids.deserialize()?;
+        if partition_centroids.vector_size() != self.vector_size() {
+            return Err(Error::InvalidData(format!(
+                "partition centroids vector size mismatch: expected {}, got {}",
+                self.vector_size(),
+                partition_centroids.vector_size(),
+            )));
+        }
+        if partition_centroids.len() != self.num_partitions() {
+            return Err(Error::InvalidData(format!(
+                "partition centroids data length mismatch: expected {}, got {}",
+                self.num_partitions(),
+                partition_centroids.len(),
+            )));
+        }
+        Ok(partition_centroids)
+    }
+}
+
 impl<T, FS> Database<T, FS>
 where
     T: Scalar,
     FS: FileSystem,
-    Self: LoadPartition<T> + LoadCodebook<T>,
+    Self: LoadPartition<T> + LoadCodebook<T> + LoadPartitionCentroids<T>,
 {
     /// Queries k-nearest neighbors (k-NN) of a given vector.
+    ///
+    /// The first call for this function may take longer because it lazily
+    /// loads partition centroids, and codebooks.
     pub fn query<V, EventHandler>(
         &self,
         v: &V,
@@ -368,6 +391,13 @@ where
                 event_handler.iter_mut().for_each(|f| f($event))
             };
         }
+        event!(DatabaseQueryEvent::StartingQueryInitialization);
+        if self.partition_centroids.get().is_none() {
+            // lazily loads partition centroids
+            self.partition_centroids
+                .set(self.load_partition_centroids()?)
+                .unwrap();
+        }
         if self.codebooks.borrow().is_none() {
             // loads codebooks if not loaded yet.
             let mut codebooks: Vec<Codebook<T>> =
@@ -377,6 +407,7 @@ where
             }
             self.codebooks.replace(Some(codebooks));
         }
+        event!(DatabaseQueryEvent::FinishedQueryInitialization);
         event!(DatabaseQueryEvent::StartingPartitionSelection);
         let v = v.as_slice();
         let queries = self.query_partitions(v, nprobe)?;
@@ -402,6 +433,8 @@ where
     }
 
     // Queries partitions closest to a given vector.
+    //
+    // Panics if the partition centroids are not loaded.
     fn query_partitions<'a>(
         &'a self,
         v: &[T],
@@ -416,6 +449,8 @@ where
                 num_partitions,
             )));
         }
+        let partition_centroids = self.partition_centroids.get()
+            .expect("partition centroids must be loaded");
         // localizes vectors and calculates distances
         let mut distances: Vec<(usize, Vec<T>, T)> =
             Vec::with_capacity(num_partitions);
@@ -424,7 +459,7 @@ where
             unsafe {
                 localized.set_len(self.vector_size());
             }
-            let centroid = self.get_partition_centroid(pi).unwrap();
+            let centroid = partition_centroids.get(pi);
             subtract(v, &centroid, &mut localized[..]);
             let distance = dot(&localized[..], &localized[..]);
             distances.push((pi, localized, distance));
@@ -510,19 +545,8 @@ where
         }
         // loads partition IDs and centroids
         let mut partition_ids: Vec<String> = Vec::with_capacity(num_partitions);
-        let mut partition_centroids: Vec<f32> =
-            Vec::with_capacity(num_partitions * vector_size);
         for partition_ref in db.partition_refs.into_iter() {
             partition_ids.push(partition_ref.id);
-            let centroid = partition_ref.centroid;
-            if centroid.len() != vector_size {
-                return Err(Error::InvalidData(format!(
-                    "vector_size {} and centroid size {} do not match",
-                    db.vector_size,
-                    centroid.len(),
-                )));
-            }
-            partition_centroids.extend(centroid);
         }
         // loads codebook IDs
         let mut codebook_ids: Vec<String> = Vec::with_capacity(num_divisions);
@@ -536,7 +560,8 @@ where
             num_divisions,
             num_codes,
             partition_ids,
-            partition_centroids,
+            partition_centroids_ref: db.partition_centroids_ref,
+            partition_centroids: OnceCell::new(),
             codebook_ids,
             codebooks: RefCell::new(None),
             attributes_log_ref: db.attributes_log_ref,
@@ -623,8 +648,20 @@ impl<T> Codebook<T> {
 pub trait LoadCodebook<T> {
     /// Loads a codebook at a given index.
     ///
-    /// `None` if `index` is out of the bounds.
+    /// Fails if `index` is out of the bounds.
     fn load_codebook(&self, index: usize) -> Result<Codebook<T>, Error>;
+}
+
+/// Interface to load partition centroids.
+///
+/// Supposed to be implemented by a specific database.
+pub trait LoadPartitionCentroids<T> {
+    /// Loads partition centroids.
+    ///
+    /// Fails if:
+    /// - vector size does not match
+    /// - number of partitions does not match
+    fn load_partition_centroids(&self) -> Result<BlockVectorSet<T>, Error>;
 }
 
 /// Attribute table.
@@ -632,6 +669,8 @@ pub type AttributeTable = HashMap<Uuid, Attributes>;
 
 /// Events emitted while querying.
 pub enum DatabaseQueryEvent {
+    StartingQueryInitialization,
+    FinishedQueryInitialization,
     StartingPartitionSelection,
     FinishedPartitionSelection,
     StartingPartitionQuery(usize),
