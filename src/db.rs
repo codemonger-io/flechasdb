@@ -11,7 +11,7 @@ use uuid::Uuid;
 use crate::error::Error;
 use crate::kmeans::{Codebook, Scalar, cluster};
 use crate::linalg::{dot, subtract_in};
-use crate::partitions::{ Partitioning, Partitions };
+use crate::partitions::{Partitioning, Partitions};
 use crate::slice::AsSlice;
 use crate::vector::{BlockVectorSet, VectorSet, divide_vector_set};
 
