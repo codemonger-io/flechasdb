@@ -160,7 +160,7 @@ where
     let time = std::time::Instant::now();
     let mut event_time = std::time::Instant::now();
     let results = db.query(
-        qv,
+        &qv,
         K.try_into().unwrap(),
         NP.try_into().unwrap(),
         Some(move |event| {

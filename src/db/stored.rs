@@ -354,7 +354,7 @@ where
     /// Queries k-nearest neighbors (k-NN) of a given vector.
     pub fn query<V, EventHandler>(
         &self,
-        v: V,
+        v: &V,
         k: NonZeroUsize,
         nprobe: NonZeroUsize,
         mut event_handler: Option<EventHandler>,
