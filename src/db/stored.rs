@@ -213,7 +213,7 @@ where
         f.verify()?;
         let vector_size = partition.vector_size as usize;
         let num_divisions = partition.num_divisions as usize;
-        let num_vectors = partition.num_vectors as usize;
+        let num_vectors = partition.encoded_vectors.len();
         if vector_size != self.vector_size() {
             return Err(Error::InvalidData(format!(
                 "vector_size {} and partition.vector_size {} do not match",
@@ -226,13 +226,6 @@ where
                 "num_divisions {} and partition.num_divisions {} do not match",
                 self.num_divisions(),
                 num_divisions,
-            )));
-        }
-        if num_vectors != partition.encoded_vectors.len() {
-            return Err(Error::InvalidData(format!(
-                "number of encoded vectors is inconsistent: expected {} but got {}",
-                num_vectors,
-                partition.encoded_vectors.len(),
             )));
         }
         if num_vectors != partition.vector_ids.len() {

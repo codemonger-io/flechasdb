@@ -222,7 +222,6 @@ impl Serialize<ProtosPartition> for Partition<f32> {
         let d = self.num_divisions();
         partition.vector_size = m as u32;
         partition.num_divisions = d as u32;
-        partition.num_vectors = n as u32;
         partition.centroid.reserve(m);
         partition.centroid.extend_from_slice(&self.centroid[..]);
         partition.encoded_vectors.reserve(n);

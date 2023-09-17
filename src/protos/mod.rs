@@ -84,7 +84,6 @@ mod tests {
         let partition = database::Partition::new();
         assert_eq!(partition.vector_size, 0);
         assert_eq!(partition.num_divisions, 0);
-        assert_eq!(partition.num_vectors, 0);
         assert!(partition.centroid.is_empty());
         assert!(partition.encoded_vectors.is_empty());
         assert!(partition.vector_ids.is_empty());

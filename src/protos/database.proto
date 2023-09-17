@@ -42,14 +42,13 @@ message Partition {
   uint32 vector_size = 1;
   // Number of subvector divisions. Must match Database::num_divisions.
   uint32 num_divisions = 2;
-  // Number of vectors in the partition.
-  uint32 num_vectors = 3;
 
   // Centroid of the partition.
   // Number of elements is given by vector_size.
   repeated float centroid = 10;
 
-  // Encoded vectors. Number of elements is given by num_vectors.
+  // Encoded vectors.
+  // Each vector must have num_divisions elements.
   repeated EncodedVector encoded_vectors = 11;
 
   // Vector IDs. Must be unique across the database.
