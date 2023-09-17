@@ -11,8 +11,8 @@ use flechasdb::db::proto::serialize_database;
 use flechasdb::db::stored;
 use flechasdb::db::stored::{DatabaseStore, LoadDatabase};
 use flechasdb::io::LocalFileSystem;
-use flechasdb::linalg::{ norm2, scale_in };
-use flechasdb::vector::{ BlockVectorSet, VectorSet };
+use flechasdb::linalg::{norm2, scale_in};
+use flechasdb::vector::{BlockVectorSet, VectorSet};
 
 fn main() -> Result<(), Error> {
     let args: Vec<String> = std::env::args().collect();
@@ -165,10 +165,17 @@ where
         NP.try_into().unwrap(),
         Some(move |event| {
             match event {
+                stored::DatabaseQueryEvent::StartingQueryInitialization |
                 stored::DatabaseQueryEvent::StartingPartitionSelection |
                 stored::DatabaseQueryEvent::StartingPartitionQuery(_) |
                 stored::DatabaseQueryEvent::StartingResultSelection => {
                     event_time = std::time::Instant::now();
+                },
+                stored::DatabaseQueryEvent::FinishedQueryInitialization => {
+                    println!(
+                        "initialized query in {} μs",
+                        event_time.elapsed().as_micros(),
+                    );
                 },
                 stored::DatabaseQueryEvent::FinishedPartitionSelection => {
                     println!(
