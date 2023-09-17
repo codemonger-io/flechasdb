@@ -200,10 +200,12 @@ where
         })
     )?;
     println!("queried k-NN in {} μs", time.elapsed().as_micros());
+    let time = std::time::Instant::now();
     for (i, result) in results.iter().enumerate() {
-        let datum_id = db.get_attribute(&result.vector_id, "datum_id")?;
+        let datum_id = db.get_attribute_of(&result, "datum_id")?;
         println!("{}: datum_id={:?}, {:?}", i, datum_id, result);
     }
+    println!("listed results in {} μs", time.elapsed().as_micros());
     Ok(())
 }
 
