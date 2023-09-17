@@ -11,7 +11,7 @@ use crate::kmeans::Codebook;
 use crate::protos::database::{
     AttributeValue as ProtosAttributeValue,
     AttributesLog as ProtosAttributesLog,
-    CodeVector as ProtosCodeVector,
+    Vector as ProtosVector,
     Codebook as ProtosCodebook,
     CodebookRef as ProtosCodebookRef,
     Database as ProtosDatabase,
@@ -19,10 +19,12 @@ use crate::protos::database::{
     OperationSetAttribute as ProtosOperationSetAttribute,
     Partition as ProtosPartition,
     PartitionRef as ProtosPartitionRef,
+    VectorSet as ProtosVectorSet,
     attribute_value as protos_attribute_value,
 };
+use crate::partitions::Partitions;
 use crate::protos::{Deserialize, Serialize, write_message};
-use crate::vector::VectorSet;
+use crate::vector::{BlockVectorSet, VectorSet};
 use super::{Database, Partition};
 
 /// Extension of a Protocol Buffers file.
@@ -39,10 +41,14 @@ where
     DatabaseSerialize<'a, T, VS>: Serialize<ProtosDatabase>,
     Partition<T>: Serialize<ProtosPartition>,
     Codebook<T>: Serialize<ProtosCodebook>,
+    BlockVectorSet<T>: Serialize<ProtosVectorSet>,
     FS: FileSystem,
 {
     // serializes partitions
     let partition_ids = serialize_partitions(db.partitions(), fs)?;
+    // serializes partition centroids
+    let partition_centroids_ref =
+        serialize_partition_centroids(&db.partitions, fs)?;
     // serializes codebooks
     let codebook_ids = serialize_codebooks(&db.codebooks, fs)?;
     // serializes attributes
@@ -52,6 +58,7 @@ where
     let db = DatabaseSerialize {
         database: db,
         partition_ids,
+        partition_centroids_ref,
         codebook_ids,
         attributes_log_ref,
     };
@@ -94,6 +101,22 @@ where
     let partition = partition.serialize()?;
     let mut f = fs.create_hashed_file_in("partitions")?;
     write_message(&partition, &mut f)?;
+    f.persist(PROTOBUF_EXTENSION)
+}
+
+// Serializes the partition centroids.
+fn serialize_partition_centroids<T, VS, FS>(
+    partitions: &Partitions<T, VS>,
+    fs: &FS,
+) -> Result<String, Error>
+where
+    BlockVectorSet<T>: Serialize<ProtosVectorSet>,
+    FS: FileSystem,
+{
+    let partition_centroids: ProtosVectorSet =
+        partitions.codebook.centroids.serialize()?;
+    let mut f = fs.create_hashed_file_in("partitions")?;
+    write_message(&partition_centroids, &mut f)?;
     f.persist(PROTOBUF_EXTENSION)
 }
 
@@ -159,6 +182,7 @@ where
 {
     database: &'a Database<T, VS>,
     partition_ids: Vec<String>,
+    partition_centroids_ref: String,
     codebook_ids: Vec<String>,
     attributes_log_ref: String,
 }
@@ -185,14 +209,12 @@ where
         db.num_divisions = self.num_divisions() as u32;
         db.num_codes = self.num_clusters() as u32;
         db.partition_refs.reserve(self.partition_ids.len());
-        for (pi, id) in self.partition_ids.iter().enumerate() {
+        for id in self.partition_ids.iter() {
             let mut partition_ref = ProtosPartitionRef::new();
             partition_ref.id = id.clone();
-            let centroid = self.partitions.codebook.centroids.get(pi);
-            partition_ref.centroid.reserve(self.vector_size);
-            partition_ref.centroid.extend_from_slice(centroid);
             db.partition_refs.push(partition_ref);
         }
+        db.partition_centroids_ref = self.partition_centroids_ref.clone();
         db.codebook_refs.reserve(self.codebook_ids.len());
         db.codebook_refs.extend(self.codebook_ids
             .iter()
@@ -243,12 +265,34 @@ impl Serialize<ProtosCodebook> for Codebook<f32> {
         codebook.codes.reserve(self.centroids.len());
         for ci in 0..self.centroids.len() {
             let centroid = self.centroids.get(ci);
-            let mut code = ProtosCodeVector::new();
+            let mut code = ProtosVector::new();
             code.elements.reserve(centroid.len());
             code.elements.extend_from_slice(centroid);
             codebook.codes.push(code);
         }
         Ok(codebook)
+    }
+}
+
+impl Serialize<ProtosVectorSet> for BlockVectorSet<f32> {
+    fn serialize(&self) -> Result<ProtosVectorSet, Error> {
+        let mut vs = ProtosVectorSet::new();
+        vs.vector_size = self.vector_size() as u32;
+        vs.data = self.data.clone();
+        Ok(vs)
+    }
+}
+
+impl Deserialize<BlockVectorSet<f32>> for ProtosVectorSet {
+    fn deserialize(self) -> Result<BlockVectorSet<f32>, Error> {
+        BlockVectorSet::chunk(
+            self.data,
+            (self.vector_size as usize)
+                .try_into()
+                .or(Err(Error::InvalidData(
+                    "vector size must not be zero".to_string(),
+                )))?,
+        )
     }
 }
 
