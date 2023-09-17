@@ -1,7 +1,7 @@
 //! Defines a stored database.
 
 use core::borrow::Borrow;
-use core::cell::{OnceCell, Ref, RefCell};
+use core::cell::{OnceCell, Ref, RefCell, RefMut};
 use core::hash::Hash;
 use core::num::NonZeroUsize;
 use std::collections::HashMap;
@@ -55,7 +55,7 @@ pub struct Database<T, FS> {
     partition_centroids: OnceCell<BlockVectorSet<T>>,
     codebook_ids: Vec<String>,
     codebooks: RefCell<Option<Vec<Codebook<T>>>>,
-    attributes_log_id: String,
+    attributes_log_ids: Vec<String>,
     attribute_table: RefCell<Option<AttributeTable>>,
 }
 
@@ -136,24 +136,48 @@ where
     }
 
     fn load_attribute_table(&self) -> Result<(), Error> {
+        for pi in 0..self.num_partitions() {
+            self.load_attributes_log(pi)?;
+        }
+        Ok(())
+    }
+
+    fn load_attributes_log(&self, partition_index: usize) -> Result<(), Error> {
         let mut path = PathBuf::from("attributes");
-        path.push(&self.attributes_log_id);
+        path.push(&self.attributes_log_ids[partition_index]);
         path.set_extension(PROTOBUF_EXTENSION);
         let mut f = self.fs.open_hashed_file(path)?;
         let attributes_log: ProtosAttributesLog = read_message(&mut f)?;
-        let mut attribute_table: AttributeTable = AttributeTable::new();
+        if attributes_log.partition_id != self.partition_ids[partition_index] {
+            return Err(Error::InvalidData(format!(
+                "inconsistent partition IDs: {} vs {}",
+                attributes_log.partition_id,
+                self.partition_ids[partition_index],
+            )));
+        }
+        if self.attribute_table.borrow().is_none() {
+            self.attribute_table.replace(Some(AttributeTable::new()));
+        }
+        let mut attribute_table = RefMut::filter_map(
+            self.attribute_table.borrow_mut(),
+            |tbl| tbl.as_mut(),
+        ).expect("attribute table must exist");
         for (i, entry) in attributes_log.entries.into_iter().enumerate() {
             let vector_id = entry.vector_id
                 .into_option()
-                .ok_or(Error::InvalidData(
-                    format!("attributes log[{}]: missing vector ID", i),
-                ))?
+                .ok_or(Error::InvalidData(format!(
+                    "attributes log[{}, {}]: missing vector ID",
+                    partition_index,
+                    i,
+                )))?
                 .deserialize()?;
             let value = entry.value
                 .into_option()
-                .ok_or(Error::InvalidData(
-                    format!("attributes log[{}]: missing value", i),
-                ))?
+                .ok_or(Error::InvalidData(format!(
+                    "attributes log[{}, {}]: missing value",
+                    partition_index,
+                    i,
+                )))?
                 .deserialize()?;
             match attribute_table.entry(vector_id) {
                 HashMapEntry::Occupied(slot) => {
@@ -171,7 +195,6 @@ where
                 },
             };
         }
-        self.attribute_table.replace(Some(attribute_table));
         Ok(())
     }
 }
@@ -536,7 +559,7 @@ where
             partition_centroids: OnceCell::new(),
             codebook_ids: db.codebook_ids,
             codebooks: RefCell::new(None),
-            attributes_log_id: db.attributes_log_id,
+            attributes_log_ids: db.attributes_log_ids,
             attribute_table: RefCell::new(None),
         };
         Ok(db)

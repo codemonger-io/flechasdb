@@ -1,10 +1,8 @@
 /// Serializes `Database` into a `protobuf::Message`.
 
 use core::iter::IntoIterator;
-use std::collections::HashMap;
-use uuid::Uuid;
 
-use crate::db::types::{AttributeValue, Attributes};
+use crate::db::types::AttributeValue;
 use crate::error::Error;
 use crate::io::{FileSystem, HashedFileOut};
 use crate::kmeans::Codebook;
@@ -50,15 +48,15 @@ where
     // serializes codebooks
     let codebook_ids = serialize_codebooks(&db.codebooks, fs)?;
     // serializes attributes
-    let attributes_log_id =
-        serialize_attribute_table(&db.attribute_table, fs)?;
+    let attributes_log_ids =
+        serialize_attribute_table(&db, &partition_ids, fs)?;
     // serializes the database
     let db = DatabaseSerialize {
         database: db,
         partition_ids,
         partition_centroids_id,
         codebook_ids,
-        attributes_log_id,
+        attributes_log_ids,
     };
     let db = db.serialize()?;
     let mut f = fs.create_hashed_file()?;
@@ -151,26 +149,42 @@ where
 }
 
 // Serializes an attribute table.
-fn serialize_attribute_table<FS>(
-    attribute_table: &HashMap<Uuid, Attributes>,
+fn serialize_attribute_table<T, VS, FS>(
+    db: &Database<T, VS>,
+    partition_ids: &Vec<String>,
     fs: &mut FS,
-) -> Result<String, Error>
+) -> Result<Vec<String>, Error>
 where
+    VS: VectorSet<T>,
     FS: FileSystem,
 {
-    let mut attributes_log = ProtosAttributesLog::new();
-    for (id, attributes) in attribute_table.iter() {
-        for (name, value) in attributes.iter() {
-            let mut set_attribute = ProtosOperationSetAttribute::new();
-            set_attribute.vector_id = Some(id.serialize()?).into();
-            set_attribute.name = name.clone();
-            set_attribute.value = Some(value.serialize()?).into();
-            attributes_log.entries.push(set_attribute);
+    assert_eq!(db.num_partitions(), partition_ids.len());
+    let mut attributes_log_ids: Vec<String> =
+        Vec::with_capacity(db.num_partitions());
+    for (pi, partition_id) in partition_ids.iter().enumerate() {
+        let mut attributes_log = ProtosAttributesLog::new();
+        attributes_log.partition_id = partition_id.clone();
+        attributes_log.entries.reserve(db.vector_ids.len());
+        for (_, id) in db.vector_ids
+            .iter()
+            .enumerate()
+            .filter(|(vi, _)| db.partitions.codebook.indices[*vi] == pi)
+        {
+            if let Some(attributes) = db.attribute_table.get(id) {
+                for (name, value) in attributes.iter() {
+                    let mut set_attribute = ProtosOperationSetAttribute::new();
+                    set_attribute.vector_id = Some(id.serialize()?).into();
+                    set_attribute.name = name.clone();
+                    set_attribute.value = Some(value.serialize()?).into();
+                    attributes_log.entries.push(set_attribute);
+                }
+            }
         }
+        let mut f = fs.create_hashed_file_in("attributes")?;
+        write_message(&attributes_log, &mut f)?;
+        attributes_log_ids.push(f.persist(PROTOBUF_EXTENSION)?);
     }
-    let mut f = fs.create_hashed_file_in("attributes")?;
-    write_message(&attributes_log, &mut f)?;
-    f.persist(PROTOBUF_EXTENSION)
+    Ok(attributes_log_ids)
 }
 
 /// Serializable form of `Database`.
@@ -182,7 +196,7 @@ where
     partition_ids: Vec<String>,
     partition_centroids_id: String,
     codebook_ids: Vec<String>,
-    attributes_log_id: String,
+    attributes_log_ids: Vec<String>,
 }
 
 impl<'a, T, VS> core::ops::Deref for DatabaseSerialize<'a, T, VS>
@@ -209,7 +223,7 @@ where
         db.partition_ids = self.partition_ids.clone();
         db.partition_centroids_id = self.partition_centroids_id.clone();
         db.codebook_ids = self.codebook_ids.clone();
-        db.attributes_log_id = self.attributes_log_id.clone();
+        db.attributes_log_ids = self.attributes_log_ids.clone();
         Ok(db)
     }
 }
