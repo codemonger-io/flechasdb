@@ -73,10 +73,10 @@ mod tests {
         assert_eq!(db.num_partitions, 0);
         assert_eq!(db.num_divisions, 0);
         assert_eq!(db.num_codes, 0);
-        assert!(db.partition_refs.is_empty());
-        assert_eq!(db.partition_centroids_ref, "");
-        assert!(db.codebook_refs.is_empty());
-        assert_eq!(db.attributes_log_ref, "");
+        assert!(db.partition_ids.is_empty());
+        assert_eq!(db.partition_centroids_id, "");
+        assert!(db.codebook_ids.is_empty());
+        assert_eq!(db.attributes_log_id, "");
     }
 
     #[test]

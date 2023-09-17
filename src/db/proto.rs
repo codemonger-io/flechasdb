@@ -13,12 +13,10 @@ use crate::protos::database::{
     AttributesLog as ProtosAttributesLog,
     Vector as ProtosVector,
     Codebook as ProtosCodebook,
-    CodebookRef as ProtosCodebookRef,
     Database as ProtosDatabase,
     EncodedVector as ProtosEncodedVector,
     OperationSetAttribute as ProtosOperationSetAttribute,
     Partition as ProtosPartition,
-    PartitionRef as ProtosPartitionRef,
     VectorSet as ProtosVectorSet,
     attribute_value as protos_attribute_value,
 };
@@ -47,20 +45,20 @@ where
     // serializes partitions
     let partition_ids = serialize_partitions(db.partitions(), fs)?;
     // serializes partition centroids
-    let partition_centroids_ref =
+    let partition_centroids_id =
         serialize_partition_centroids(&db.partitions, fs)?;
     // serializes codebooks
     let codebook_ids = serialize_codebooks(&db.codebooks, fs)?;
     // serializes attributes
-    let attributes_log_ref =
+    let attributes_log_id =
         serialize_attribute_table(&db.attribute_table, fs)?;
     // serializes the database
     let db = DatabaseSerialize {
         database: db,
         partition_ids,
-        partition_centroids_ref,
+        partition_centroids_id,
         codebook_ids,
-        attributes_log_ref,
+        attributes_log_id,
     };
     let db = db.serialize()?;
     let mut f = fs.create_hashed_file()?;
@@ -182,9 +180,9 @@ where
 {
     database: &'a Database<T, VS>,
     partition_ids: Vec<String>,
-    partition_centroids_ref: String,
+    partition_centroids_id: String,
     codebook_ids: Vec<String>,
-    attributes_log_ref: String,
+    attributes_log_id: String,
 }
 
 impl<'a, T, VS> core::ops::Deref for DatabaseSerialize<'a, T, VS>
@@ -208,23 +206,10 @@ where
         db.num_partitions = self.num_partitions() as u32;
         db.num_divisions = self.num_divisions() as u32;
         db.num_codes = self.num_clusters() as u32;
-        db.partition_refs.reserve(self.partition_ids.len());
-        for id in self.partition_ids.iter() {
-            let mut partition_ref = ProtosPartitionRef::new();
-            partition_ref.id = id.clone();
-            db.partition_refs.push(partition_ref);
-        }
-        db.partition_centroids_ref = self.partition_centroids_ref.clone();
-        db.codebook_refs.reserve(self.codebook_ids.len());
-        db.codebook_refs.extend(self.codebook_ids
-            .iter()
-            .map(|id| {
-                let mut codebook_ref = ProtosCodebookRef::new();
-                codebook_ref.id = id.clone();
-                codebook_ref
-            }),
-        );
-        db.attributes_log_ref = self.attributes_log_ref.clone();
+        db.partition_ids = self.partition_ids.clone();
+        db.partition_centroids_id = self.partition_centroids_id.clone();
+        db.codebook_ids = self.codebook_ids.clone();
+        db.attributes_log_id = self.attributes_log_id.clone();
         Ok(db)
     }
 }

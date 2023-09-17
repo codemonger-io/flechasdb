@@ -51,11 +51,11 @@ pub struct Database<T, FS> {
     num_divisions: usize,
     num_codes: usize,
     partition_ids: Vec<String>,
-    partition_centroids_ref: String,
+    partition_centroids_id: String,
     partition_centroids: OnceCell<BlockVectorSet<T>>,
     codebook_ids: Vec<String>,
     codebooks: RefCell<Option<Vec<Codebook<T>>>>,
-    attributes_log_ref: String,
+    attributes_log_id: String,
     attribute_table: RefCell<Option<AttributeTable>>,
 }
 
@@ -137,7 +137,7 @@ where
 
     fn load_attribute_table(&self) -> Result<(), Error> {
         let mut path = PathBuf::from("attributes");
-        path.push(&self.attributes_log_ref);
+        path.push(&self.attributes_log_id);
         path.set_extension(PROTOBUF_EXTENSION);
         let mut f = self.fs.open_hashed_file(path)?;
         let attributes_log: ProtosAttributesLog = read_message(&mut f)?;
@@ -341,7 +341,7 @@ where
 {
     fn load_partition_centroids(&self) -> Result<BlockVectorSet<f32>, Error> {
         let mut path = PathBuf::from("partitions");
-        path.push(&self.partition_centroids_ref);
+        path.push(&self.partition_centroids_id);
         path.set_extension(PROTOBUF_EXTENSION);
         let mut f = self.fs.open_hashed_file(path)?;
         let partition_centroids: ProtosVectorSet = read_message(&mut f)?;
@@ -529,29 +529,19 @@ where
                 num_divisions,
             )));
         }
-        if num_partitions != db.partition_refs.len() {
+        if num_partitions != db.partition_ids.len() {
             return Err(Error::InvalidData(format!(
-                "num_partitions {} and partition_refs.len() {} do not match",
+                "num_partitions {} and partition_ids.len() {} do not match",
                 db.num_partitions,
-                db.partition_refs.len(),
+                db.partition_ids.len(),
             )));
         }
-        if num_divisions != db.codebook_refs.len() {
+        if num_divisions != db.codebook_ids.len() {
             return Err(Error::InvalidData(format!(
-                "num_divisions {} and codebook_refs.len() {} do not match",
+                "num_divisions {} and codebook_ids.len() {} do not match",
                 db.num_divisions,
-                db.codebook_refs.len(),
+                db.codebook_ids.len(),
             )));
-        }
-        // loads partition IDs and centroids
-        let mut partition_ids: Vec<String> = Vec::with_capacity(num_partitions);
-        for partition_ref in db.partition_refs.into_iter() {
-            partition_ids.push(partition_ref.id);
-        }
-        // loads codebook IDs
-        let mut codebook_ids: Vec<String> = Vec::with_capacity(num_divisions);
-        for codebook_ref in db.codebook_refs.into_iter() {
-            codebook_ids.push(codebook_ref.id);
         }
         let db = Database {
             fs,
@@ -559,12 +549,12 @@ where
             num_partitions,
             num_divisions,
             num_codes,
-            partition_ids,
-            partition_centroids_ref: db.partition_centroids_ref,
+            partition_ids: db.partition_ids,
+            partition_centroids_id: db.partition_centroids_id,
             partition_centroids: OnceCell::new(),
-            codebook_ids,
+            codebook_ids: db.codebook_ids,
             codebooks: RefCell::new(None),
-            attributes_log_ref: db.attributes_log_ref,
+            attributes_log_id: db.attributes_log_id,
             attribute_table: RefCell::new(None),
         };
         Ok(db)

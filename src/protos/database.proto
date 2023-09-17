@@ -13,33 +13,27 @@ message Database {
   // Number of codes in each codebook.
   uint32 num_codes = 4;
 
-  // Partition references.
-  // Actual data are separately loaded.
-  repeated PartitionRef partition_refs = 10;
+  // Reference IDs of the partitions.
+  // Reference ID is supposed to be a URL-safe Base-64 encoded SHA-256 digest
+  // of a serialized partition.
+  // Number of elements must match num_partitions.
+  repeated string partition_ids = 10;
 
-  // Centroids of partitions.
-  // ID of the VectorSet containing centroids.
-  string partition_centroids_ref = 11;
+  // Reference IDs of the partition centroids.
+  // Reference ID is supposed to be a URL-safe Base-64 encoded SHA-256 digest
+  // of the serialized partition centroids.
+  string partition_centroids_id = 11;
 
-  // Codebook references.
-  repeated CodebookRef codebook_refs = 12;
+  // Reference IDs of the codebooks.
+  // Reference ID is supposed to be a URL-safe Base-64 encoded SHA-256 digest
+  // of a serialized codebook.
+  // Number of elements must match num_divisions.
+  repeated string codebook_ids = 12;
 
-  // Reference to the attributes log.
-  string attributes_log_ref = 13;
-}
-
-// Reference to a partition.
-message PartitionRef {
-  // ID of the partition. Supposed to be the URL-safe Base64-encoded SHA-256
-  // digest of the entire partition.
-  string id = 1;
-}
-
-// Reference to a codebook.
-message CodebookRef {
-  // ID of the codebook. Supposed to be the URL-safe Base64-encoded SHA-256
-  // digest of the entire codebook.
-  string id = 1;
+  // Reference ID of the attributes log.
+  // Reference ID is supposed to be a URL-safe Base-64 encoded SHA-256 digest
+  // of a serialized attributes log.
+  string attributes_log_id = 13;
 }
 
 // Single partition.
