@@ -76,7 +76,7 @@ mod tests {
         assert!(db.partition_ids.is_empty());
         assert_eq!(db.partition_centroids_id, "");
         assert!(db.codebook_ids.is_empty());
-        assert_eq!(db.attributes_log_id, "");
+        assert!(db.attributes_log_ids.is_empty());
     }
 
     #[test]

@@ -30,10 +30,12 @@ message Database {
   // Number of elements must match num_divisions.
   repeated string codebook_ids = 12;
 
-  // Reference ID of the attributes log.
+  // Reference IDs of the attributes logs.
   // Reference ID is supposed to be a URL-safe Base-64 encoded SHA-256 digest
   // of a serialized attributes log.
-  string attributes_log_id = 13;
+  // Each partition has a separate attributes log.
+  // Number of elements must match num_partitions.
+  repeated string attributes_log_ids = 13;
 }
 
 // Single partition.
@@ -97,10 +99,13 @@ message AttributeValue {
 
 // Log of attributes.
 message AttributesLog {
+  // ID of the partition.
+  string partition_id = 1;
+
   // Log entries.
   // AttributesLog contains only "set" operations.
   // If an attribute value is set multiple times, the last value is used.
-  repeated OperationSetAttribute entries = 1;
+  repeated OperationSetAttribute entries = 10;
 }
 
 // Operation to set an attribute.
