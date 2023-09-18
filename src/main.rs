@@ -91,7 +91,9 @@ fn generate() -> Result<(), Error> {
     println!("built database in {} μs", time.elapsed().as_micros());
     // sets attributes
     for i in 0..N {
-        db.set_attribute_at(i, ("datum_id", format!("{}", i)))?;
+        if i % 2 == 0 {
+            db.set_attribute_at(i, ("datum_id", format!("{}", i)))?;
+        } // tests vector without attributes
     }
     // creates a random query vector
     let qv = random_query_vector(&mut rng, M);
