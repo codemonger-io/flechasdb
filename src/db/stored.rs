@@ -103,7 +103,13 @@ where
     pub fn get_codebook_id(&self, index: usize) -> Option<&String> {
         self.codebook_ids.get(index)
     }
+}
 
+impl<T, FS> Database<T, FS>
+where
+    FS: FileSystem,
+    Self: LoadPartition<T>,
+{
     /// Returns an attribute value of a given vector.
     ///
     /// The first call to this function will take longer because it loads all
@@ -196,10 +202,14 @@ where
 
     // Loads the attributes log of a specified partition if it is not loaded
     // yet.
+    //
+    // This function also loads the partition to list all the vector IDs in
+    // the partition.
     fn load_attributes_log(&self, partition_index: usize) -> Result<(), Error> {
         if self.attributes_log_load_flags.borrow()[partition_index] {
             return Ok(());
         }
+        let partition = self.get_partition(partition_index)?;
         let mut path = PathBuf::from("attributes");
         path.push(&self.attributes_log_ids[partition_index]);
         path.set_extension(PROTOBUF_EXTENSION);
@@ -252,16 +262,17 @@ where
                 },
             };
         }
+        // defaults to empty attributes so that
+        // get_attribute won't fail for an existing vector without attributes.
+        for vector_id in partition.vector_ids.iter() {
+            attribute_table
+                .entry(vector_id.clone())
+                .or_insert_with(Attributes::new);
+        }
         self.attributes_log_load_flags.borrow_mut()[partition_index] = true;
         Ok(())
     }
-}
 
-impl<T, FS> Database<T, FS>
-where
-    FS: FileSystem,
-    Self: LoadPartition<T>,
-{
     // Obtains a specified partition.
     //
     // Lazily loads the partition if it is not loaded yet.
