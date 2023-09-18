@@ -5,6 +5,8 @@ pub enum Error {
     InvalidArgs(String),
     /// Invalid data.
     InvalidData(String),
+    /// Invalid context.
+    InvalidContext(String),
     /// Verification has failed.
     VerificationFailure(String),
     /// I/O error.
@@ -20,6 +22,7 @@ impl std::fmt::Display for Error {
         match self {
             Self::InvalidArgs(s) |
             Self::InvalidData(s) |
+            Self::InvalidContext(s) |
             Self::VerificationFailure(s) => write!(f, "{}", s),
             Self::IOError(e) => write!(f, "I/O error: {}", e),
             Self::ProtobufError(e) => write!(f, "Protobuf error: {}", e),
