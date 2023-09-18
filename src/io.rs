@@ -27,7 +27,7 @@ pub trait FileSystem {
         path: P,
     ) -> Result<Self::HashedFileOut, Error>
     where
-        P: AsRef<Path>;
+        P: AsRef<str>;
 
     /// Opens a file whose name is the hash of its contents.
     fn open_hashed_file<P>(
@@ -35,7 +35,7 @@ pub trait FileSystem {
         path: P,
     ) -> Result<Self::HashedFileIn, Error>
     where
-        P: AsRef<Path>;
+        P: AsRef<str>;
 }
 
 /// File whose name will be the hash of its contents.
@@ -49,7 +49,7 @@ pub trait HashedFileOut: Write {
     /// encoded SHA256 digest.
     fn persist<S>(self, extension: S) -> Result<String, Error>
     where
-        S: AsRef<OsStr>;
+        S: AsRef<str>;
 }
 
 /// File whose name is the hash of its contents.
@@ -94,9 +94,9 @@ impl FileSystem for LocalFileSystem {
         path: P,
     ) -> Result<Self::HashedFileOut, Error>
     where
-        P: AsRef<Path>,
+        P: AsRef<str>,
     {
-        LocalHashedFileOut::create(self.base_path.join(path))
+        LocalHashedFileOut::create(self.base_path.join(path.as_ref()))
     }
 
     fn open_hashed_file<P>(
@@ -104,9 +104,9 @@ impl FileSystem for LocalFileSystem {
         path: P,
     ) -> Result<Self::HashedFileIn, Error>
     where
-        P: AsRef<Path>,
+        P: AsRef<str>,
     {
-        LocalHashedFileIn::open(self.base_path.join(path))
+        LocalHashedFileIn::open(self.base_path.join(path.as_ref()))
     }
 }
 
@@ -148,7 +148,7 @@ impl Write for LocalHashedFileOut {
 impl HashedFileOut for LocalHashedFileOut {
     fn persist<S>(mut self, extension: S) -> Result<String, Error>
     where
-        S: AsRef<OsStr>,
+        S: AsRef<str>,
     {
         self.flush()?;
         if !self.base_path.exists() {
@@ -156,7 +156,9 @@ impl HashedFileOut for LocalHashedFileOut {
         }
         let hash = self.context.finish();
         let hash = base64_engine.encode(&hash);
-        let path = self.base_path.join(&hash).with_extension(extension);
+        let path = self.base_path
+            .join(&hash)
+            .with_extension(extension.as_ref());
         self.tempfile.persist(path)?;
         Ok(hash)
     }

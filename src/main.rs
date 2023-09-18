@@ -1,5 +1,6 @@
 use anyhow::Error;
 use rand::Rng;
+use std::path::Path;
 
 use flechasdb::db::{
     Database,
@@ -146,7 +147,7 @@ fn generate() -> Result<(), Error> {
 
 fn load<P>(path: P) -> Result<(), Error>
 where
-    P: AsRef<std::path::Path> + core::fmt::Debug,
+    P: AsRef<Path> + core::fmt::Debug,
 {
     const K: usize = 10; // K-nearest neighbors
     const NP: usize = 3; // number of partitions to query
@@ -223,7 +224,7 @@ fn save_database<VS, P>(
 ) -> Result<(), Error>
 where
     VS: VectorSet<f32>,
-    P: AsRef<std::path::Path> + core::fmt::Debug,
+    P: AsRef<Path> + core::fmt::Debug,
 {
     println!("saving database to {:?}", base_path);
     let mut fs = LocalFileSystem::new(base_path);
@@ -235,11 +236,12 @@ fn load_database<P>(
     path: P,
 ) -> Result<stored::Database<f32, LocalFileSystem>, Error>
 where
-    P: AsRef<std::path::Path> + core::fmt::Debug,
+    P: AsRef<Path> + core::fmt::Debug,
 {
+    let path = path.as_ref();
     let db = DatabaseStore::<f32, _>::load_database(
-        LocalFileSystem::new(path.as_ref().parent().unwrap()),
-        path.as_ref().file_name().unwrap(),
+        LocalFileSystem::new(path.parent().unwrap()),
+        path.file_name().unwrap().to_str().unwrap(),
     )?;
     Ok(db)
 }

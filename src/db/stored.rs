@@ -6,7 +6,6 @@ use core::hash::Hash;
 use core::num::NonZeroUsize;
 use std::collections::HashMap;
 use std::collections::hash_map::{Entry as HashMapEntry};
-use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 use crate::db::types::{Attributes, AttributeValue};
@@ -40,7 +39,7 @@ pub trait LoadDatabase<T, FS> {
     /// Loads a database.
     fn load_database<P>(fs: FS, path: P) -> Result<Database<T, FS>, Error>
     where
-        P: AsRef<Path>;
+        P: AsRef<str>;
 }
 
 /// Stored database.
@@ -210,10 +209,11 @@ where
             return Ok(());
         }
         let partition = self.get_partition(partition_index)?;
-        let mut path = PathBuf::from("attributes");
-        path.push(&self.attributes_log_ids[partition_index]);
-        path.set_extension(PROTOBUF_EXTENSION);
-        let mut f = self.fs.open_hashed_file(path)?;
+        let mut f = self.fs.open_hashed_file(format!(
+            "attributes/{}.{}",
+            self.attributes_log_ids[partition_index],
+            PROTOBUF_EXTENSION,
+        ))?;
         let attributes_log: ProtosAttributesLog = read_message(&mut f)?;
         if attributes_log.partition_id != self.partition_ids[partition_index] {
             return Err(Error::InvalidData(format!(
@@ -339,10 +339,11 @@ where
                 self.num_partitions,
             )));
         }
-        let mut path = PathBuf::from("partitions");
-        path.push(self.get_partition_id(index).unwrap());
-        path.set_extension(PROTOBUF_EXTENSION);
-        let mut f = self.fs.open_hashed_file(path)?;
+        let mut f = self.fs.open_hashed_file(format!(
+            "partitions/{}.{}",
+            self.get_partition_id(index).unwrap(),
+            PROTOBUF_EXTENSION,
+        ))?;
         let partition: ProtosPartition = read_message(&mut f)?;
         f.verify()?;
         let vector_size = partition.vector_size as usize;
@@ -409,10 +410,11 @@ where
                 self.num_divisions(),
             )));
         }
-        let path = PathBuf::from("codebooks")
-            .join(self.get_codebook_id(index).unwrap())
-            .with_extension(PROTOBUF_EXTENSION);
-        let mut f = self.fs.open_hashed_file(path)?;
+        let mut f = self.fs.open_hashed_file(format!(
+            "codebooks/{}.{}",
+            self.get_codebook_id(index).unwrap(),
+            PROTOBUF_EXTENSION,
+        ))?;
         let codebook: ProtosCodebook = read_message(&mut f)?;
         f.verify()?;
         let vector_size = codebook.vector_size as usize;
@@ -456,10 +458,11 @@ where
     FS: FileSystem,
 {
     fn load_partition_centroids(&self) -> Result<BlockVectorSet<f32>, Error> {
-        let mut path = PathBuf::from("partitions");
-        path.push(&self.partition_centroids_id);
-        path.set_extension(PROTOBUF_EXTENSION);
-        let mut f = self.fs.open_hashed_file(path)?;
+        let mut f = self.fs.open_hashed_file(format!(
+            "partitions/{}.{}",
+            self.partition_centroids_id,
+            PROTOBUF_EXTENSION,
+        ))?;
         let partition_centroids: ProtosVectorSet = read_message(&mut f)?;
         let partition_centroids: BlockVectorSet<f32> =
             partition_centroids.deserialize()?;
@@ -617,7 +620,7 @@ where
     /// - `num_divisions` and `codebook_refs.len()` do not match
     fn load_database<P>(fs: FS, path: P) -> Result<Database<f32, FS>, Error>
     where
-        P: AsRef<Path>,
+        P: AsRef<str>,
     {
         let mut f = fs.open_hashed_file(path)?;
         let db: ProtosDatabase = read_message(&mut f)?;
