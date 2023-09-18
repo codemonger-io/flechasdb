@@ -156,56 +156,62 @@ where
     // randomly generates a query vector.
     let mut rng = rand::thread_rng();
     let qv = random_query_vector(&mut rng, db.vector_size());
-    // queries k-NN
-    let time = std::time::Instant::now();
-    let mut event_time = std::time::Instant::now();
-    let results = db.query(
-        &qv,
-        K.try_into().unwrap(),
-        NP.try_into().unwrap(),
-        Some(move |event| {
-            match event {
-                stored::DatabaseQueryEvent::StartingQueryInitialization |
-                stored::DatabaseQueryEvent::StartingPartitionSelection |
-                stored::DatabaseQueryEvent::StartingPartitionQuery(_) |
-                stored::DatabaseQueryEvent::StartingResultSelection => {
-                    event_time = std::time::Instant::now();
-                },
-                stored::DatabaseQueryEvent::FinishedQueryInitialization => {
-                    println!(
-                        "initialized query in {} μs",
-                        event_time.elapsed().as_micros(),
-                    );
-                },
-                stored::DatabaseQueryEvent::FinishedPartitionSelection => {
-                    println!(
-                        "selected partitions in {} μs",
-                        event_time.elapsed().as_micros(),
-                    );
-                },
-                stored::DatabaseQueryEvent::FinishedPartitionQuery(i) => {
-                    println!(
-                        "queried partition {} in {} μs",
-                        i,
-                        event_time.elapsed().as_micros(),
-                    );
-                },
-                stored::DatabaseQueryEvent::FinishedResultSelection => {
-                    println!(
-                        "selected results in {} μs",
-                        event_time.elapsed().as_micros(),
-                    );
-                },
-            }
-        })
-    )?;
-    println!("queried k-NN in {} μs", time.elapsed().as_micros());
-    let time = std::time::Instant::now();
-    for (i, result) in results.iter().enumerate() {
-        let datum_id = db.get_attribute_of(&result, "datum_id")?;
-        println!("{}: datum_id={:?}, {:?}", i, datum_id, result);
+    for r in 0..2 {
+        // queries k-NN
+        let time = std::time::Instant::now();
+        let mut event_time = std::time::Instant::now();
+        let results = db.query(
+            &qv,
+            K.try_into().unwrap(),
+            NP.try_into().unwrap(),
+            Some(move |event| {
+                match event {
+                    stored::DatabaseQueryEvent::StartingQueryInitialization |
+                    stored::DatabaseQueryEvent::StartingPartitionSelection |
+                    stored::DatabaseQueryEvent::StartingPartitionQuery(_) |
+                    stored::DatabaseQueryEvent::StartingResultSelection => {
+                        event_time = std::time::Instant::now();
+                    },
+                    stored::DatabaseQueryEvent::FinishedQueryInitialization => {
+                        println!(
+                            "[{}] initialized query in {} μs",
+                            r,
+                            event_time.elapsed().as_micros(),
+                        );
+                    },
+                    stored::DatabaseQueryEvent::FinishedPartitionSelection => {
+                        println!(
+                            "[{}] selected partitions in {} μs",
+                            r,
+                            event_time.elapsed().as_micros(),
+                        );
+                    },
+                    stored::DatabaseQueryEvent::FinishedPartitionQuery(i) => {
+                        println!(
+                            "[{}] queried partition {} in {} μs",
+                            r,
+                            i,
+                            event_time.elapsed().as_micros(),
+                        );
+                    },
+                    stored::DatabaseQueryEvent::FinishedResultSelection => {
+                        println!(
+                            "[{}] selected results in {} μs",
+                            r,
+                            event_time.elapsed().as_micros(),
+                        );
+                    },
+                }
+            })
+        )?;
+        println!("[{}] queried k-NN in {} μs", r, time.elapsed().as_micros());
+        let time = std::time::Instant::now();
+        for (i, result) in results.iter().enumerate() {
+            let datum_id = db.get_attribute_of(&result, "datum_id")?;
+            println!("{}: datum_id={:?}, {:?}", i, datum_id, result);
+        }
+        println!("[{}] listed results in {} μs", r, time.elapsed().as_micros());
     }
-    println!("listed results in {} μs", time.elapsed().as_micros());
     Ok(())
 }
 
