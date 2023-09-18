@@ -51,6 +51,7 @@ pub struct Database<T, FS> {
     num_divisions: usize,
     num_codes: usize,
     partition_ids: Vec<String>,
+    partitions: RefCell<Vec<Option<Partition<T>>>>,
     partition_centroids_id: String,
     partition_centroids: OnceCell<BlockVectorSet<T>>,
     codebook_ids: Vec<String>,
@@ -255,6 +256,48 @@ where
         Ok(())
     }
 }
+
+impl<T, FS> Database<T, FS>
+where
+    FS: FileSystem,
+    Self: LoadPartition<T>,
+{
+    // Obtains a specified partition.
+    //
+    // Lazily loads the partition if it is not loaded yet.
+    //
+    // Fails if:
+    // - `index` exceeds the number of partitions
+    // - there is any problem on the partition data
+    fn get_partition(
+        &self,
+        index: usize,
+    ) -> Result<PartitionRef<'_, T>, Error> {
+        if index >= self.num_partitions() {
+            return Err(Error::InvalidArgs(format!(
+                "partition index out of bounds: {}",
+                index,
+            )));
+        }
+        if self.partitions.borrow()[index].is_none() {
+            self.partitions.borrow_mut()[index] =
+                Some(self.load_partition(index)?);
+        }
+        let partition =
+            Ref:: filter_map(
+                self.partitions.borrow(),
+                |partitions| partitions[index].as_ref(),
+            )
+            .or(Err(Error::InvalidData(
+                "partition must be loaded".to_string(),
+            )))
+            .unwrap();
+        Ok(partition)
+    }
+}
+
+// Reference type of a partition.
+type PartitionRef<'a, T> = Ref<'a, Partition<T>>;
 
 /// Reference type of an attribute value.
 pub type AttributeValueRef<'a> = Ref<'a, AttributeValue>;
@@ -612,6 +655,7 @@ where
             num_divisions,
             num_codes,
             partition_ids: db.partition_ids,
+            partitions: RefCell::new(vec![None; num_partitions]),
             partition_centroids_id: db.partition_centroids_id,
             partition_centroids: OnceCell::new(),
             codebook_ids: db.codebook_ids,
@@ -629,6 +673,7 @@ where
 ///
 /// Bears the centroid element type `T`, but the centroid is not retained
 /// because the database manages centroids.
+#[derive(Clone)]
 pub struct Partition<T> {
     _t: std::marker::PhantomData<T>,
     encoded_vectors: BlockVectorSet<u32>,
@@ -748,7 +793,7 @@ where
         let num_codes = self.database.num_codes();
         let subvector_size = self.database.subvector_size();
         // loads the partition
-        let partition = self.database.load_partition(self.partition_index)?;
+        let partition = self.database.get_partition(self.partition_index)?;
         // calculates the distance table
         let mut distance_table: Vec<T> =
             Vec::with_capacity(num_divisions * num_codes);
