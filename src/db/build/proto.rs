@@ -2,12 +2,10 @@
 
 use core::iter::IntoIterator;
 
-use crate::db::types::AttributeValue;
 use crate::error::Error;
 use crate::io::{FileSystem, HashedFileOut};
 use crate::kmeans::Codebook;
 use crate::protos::database::{
-    AttributeValue as ProtosAttributeValue,
     AttributesLog as ProtosAttributesLog,
     Vector as ProtosVector,
     Codebook as ProtosCodebook,
@@ -15,10 +13,9 @@ use crate::protos::database::{
     OperationSetAttribute as ProtosOperationSetAttribute,
     Partition as ProtosPartition,
     VectorSet as ProtosVectorSet,
-    attribute_value as protos_attribute_value,
 };
 use crate::partitions::Partitions;
-use crate::protos::{Deserialize, Serialize, write_message};
+use crate::protos::{Serialize, write_message};
 use crate::vector::{BlockVectorSet, VectorSet};
 use super::{Database, Partition};
 
@@ -260,33 +257,5 @@ impl Serialize<ProtosCodebook> for Codebook<f32> {
             codebook.codes.push(code);
         }
         Ok(codebook)
-    }
-}
-
-impl Serialize<ProtosAttributeValue> for AttributeValue {
-    fn serialize(&self) -> Result<ProtosAttributeValue, Error> {
-        let mut value = ProtosAttributeValue::new();
-        match self {
-            AttributeValue::String(s) => {
-                value.value = Some(
-                    protos_attribute_value::Value::StringValue(s.clone()),
-                );
-            }
-        };
-        Ok(value)
-    }
-}
-
-impl Deserialize<AttributeValue> for ProtosAttributeValue {
-    fn deserialize(self) -> Result<AttributeValue, Error> {
-        if let Some(value) = self.value {
-            match value {
-                protos_attribute_value::Value::StringValue(s) => {
-                    Ok(AttributeValue::String(s))
-                },
-            }
-        } else {
-            Err(Error::InvalidData(format!("missing attribute value")))
-        }
     }
 }

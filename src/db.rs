@@ -4,6 +4,23 @@
 //!
 //! Use `stored` submodule to load a stored database.
 
+use std::collections::HashMap;
+
 pub mod build;
+pub mod proto;
 pub mod stored;
-pub mod types;
+
+/// Attributes associated with a vector.
+pub type Attributes = HashMap<String, AttributeValue>;
+
+/// Attribute value.
+#[derive(Clone, Debug, PartialEq)]
+pub enum AttributeValue {
+    String(String),
+}
+
+impl From<String> for AttributeValue {
+    fn from(s: String) -> Self {
+        AttributeValue::String(s)
+    }
+}

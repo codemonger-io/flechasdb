@@ -8,7 +8,6 @@ use std::collections::HashMap;
 use std::collections::hash_map::{Entry as HashMapEntry};
 use uuid::Uuid;
 
-use crate::db::types::{Attributes, AttributeValue};
 use crate::error::Error;
 use crate::io::{FileSystem, HashedFileIn};
 use crate::kmeans::Scalar;
@@ -23,6 +22,8 @@ use crate::protos::database::{
 use crate::protos::{Deserialize, read_message};
 use crate::slice::AsSlice;
 use crate::vector::BlockVectorSet;
+
+use super::{Attributes, AttributeValue};
 
 pub const PROTOBUF_EXTENSION: &str = "binpb";
 

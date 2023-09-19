@@ -15,7 +15,7 @@ use crate::partitions::{Partitioning, Partitions};
 use crate::slice::AsSlice;
 use crate::vector::{BlockVectorSet, VectorSet, divide_vector_set};
 
-use super::types::{Attributes, AttributeValue};
+use super::{Attributes, AttributeValue};
 
 pub mod proto;
 
