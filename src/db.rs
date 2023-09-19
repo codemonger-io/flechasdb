@@ -283,7 +283,7 @@ where
         mut event_handler: Option<EventHandler>,
     ) -> Result<Vec<QueryResult<T>>, Error>
     where
-        V: AsSlice<T>,
+        V: AsSlice<T> + ?Sized,
         EventHandler: FnMut(DatabaseQueryEvent) -> (),
     {
         macro_rules! event {
