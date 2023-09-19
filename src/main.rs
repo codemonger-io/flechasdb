@@ -2,13 +2,13 @@ use anyhow::Error;
 use rand::Rng;
 use std::path::Path;
 
-use flechasdb::db::{
+use flechasdb::db::build::{
     Database,
     DatabaseBuilder,
     DatabaseBuilderEvent,
     DatabaseQueryEvent,
 };
-use flechasdb::db::proto::serialize_database;
+use flechasdb::db::build::proto::serialize_database;
 use flechasdb::db::stored;
 use flechasdb::db::stored::{DatabaseStore, LoadDatabase};
 use flechasdb::io::LocalFileSystem;

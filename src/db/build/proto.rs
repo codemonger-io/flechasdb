@@ -1,4 +1,4 @@
-/// Serializes `Database` into a `protobuf::Message`.
+/// `build::Database` into Protocol Buffers data.
 
 use core::iter::IntoIterator;
 
