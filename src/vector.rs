@@ -3,6 +3,8 @@ use std::num::NonZeroUsize;
 use crate::error::Error;
 use crate::slice::AsSlice;
 
+pub mod proto;
+
 /// Set of vectors of the same size.
 pub trait VectorSet<T> {
     /// Vector type.
