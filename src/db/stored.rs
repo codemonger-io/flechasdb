@@ -14,7 +14,6 @@ use crate::kmeans::Scalar;
 use crate::linalg::{dot, subtract};
 use crate::protos::database::{
     AttributesLog as ProtosAttributesLog,
-    Codebook as ProtosCodebook,
     Database as ProtosDatabase,
     Partition as ProtosPartition,
     VectorSet as ProtosVectorSet,
@@ -55,7 +54,7 @@ pub struct Database<T, FS> {
     partition_centroids_id: String,
     partition_centroids: OnceCell<BlockVectorSet<T>>,
     codebook_ids: Vec<String>,
-    codebooks: RefCell<Option<Vec<Codebook<T>>>>,
+    codebooks: RefCell<Option<Vec<BlockVectorSet<T>>>>,
     attributes_log_ids: Vec<String>,
     attributes_log_load_flags: RefCell<Vec<bool>>,
     attribute_table: RefCell<Option<AttributeTable>>,
@@ -394,13 +393,12 @@ where
 {
     /// Loads a codebook.
     ///
-    /// Suppose `c` represents a Protocol Buffers message for a codebook.
     /// Fails if:
     /// - `index` exceeds the number of codebooks.
-    /// - `self.subvector_size()` and `c.vector_size` do not match.
-    /// - `c.num_codes` and `c.codes.len()` do not match.
-    /// - `c.vector_size` and the code vector length do not match.
-    fn load_codebook(&self, index: usize) -> Result<Codebook<f32>, Error>
+    /// - codebook file cannot be loaded.
+    /// - vector size does not match the subvector size of the database.
+    /// - number of vectors does not match that of the database.
+    fn load_codebook(&self, index: usize) -> Result<BlockVectorSet<f32>, Error>
     where
         FS: FileSystem,
     {
@@ -416,41 +414,24 @@ where
             self.get_codebook_id(index).unwrap(),
             PROTOBUF_EXTENSION,
         ))?;
-        let codebook: ProtosCodebook = read_message(&mut f)?;
+        let codebook: ProtosVectorSet = read_message(&mut f)?;
         f.verify()?;
-        let vector_size = codebook.vector_size as usize;
-        let num_codes = codebook.num_codes as usize;
-        if vector_size != self.subvector_size() {
+        let codebook: BlockVectorSet<f32> = codebook.deserialize()?;
+        if codebook.vector_size() != self.subvector_size() {
             return Err(Error::InvalidData(format!(
-                "vector_size {} and subvector length {} do not match",
-                vector_size,
+                "vector_size is inconsistent: expected {} but got {}",
                 self.subvector_size(),
+                codebook.vector_size(),
             )));
         }
-        if num_codes != codebook.codes.len() {
+        if codebook.len() != self.num_codes() {
             return Err(Error::InvalidData(format!(
                 "number of codes is inconsistent: expected {} but got {}",
-                num_codes,
-                codebook.codes.len(),
+                self.num_codes(),
+                codebook.len(),
             )));
         }
-        // loads codes
-        let mut codes: Vec<f32> = Vec::with_capacity(num_codes * vector_size);
-        for code_vector in codebook.codes.into_iter() {
-            if vector_size != code_vector.elements.len() {
-                return Err(Error::InvalidData(format!(
-                    "vector size is inconsitent: expected {} but got {}",
-                    vector_size,
-                    code_vector.elements.len(),
-                )));
-            }
-            codes.extend(code_vector.elements);
-        }
-        Ok(Codebook {
-            vector_size,
-            num_codes,
-            codes,
-        })
+        Ok(codebook)
     }
 }
 
@@ -520,7 +501,7 @@ where
         }
         if self.codebooks.borrow().is_none() {
             // loads codebooks if not loaded yet.
-            let mut codebooks: Vec<Codebook<T>> =
+            let mut codebooks: Vec<BlockVectorSet<T>> =
                 Vec::with_capacity(self.num_divisions());
             for di in 0..self.num_divisions() {
                 codebooks.push(self.load_codebook(di)?);
@@ -730,28 +711,6 @@ pub trait LoadPartition<T> {
     fn load_partition(&self, index: usize) -> Result<Partition<T>, Error>;
 }
 
-/// Codebook.
-pub struct Codebook<T> {
-    vector_size: usize,
-    num_codes: usize,
-    codes: Vec<T>, // num_codes × vector_size
-}
-
-impl<T> Codebook<T> {
-    /// Returns the code vector at a given index.
-    ///
-    /// `None` if `index` exceeds `num_codes`.
-    pub fn get_code_vector(&self, index: usize) -> Option<&[T]> {
-        if index < self.num_codes {
-            let from = index * self.vector_size;
-            let to = from + self.vector_size;
-            Some(&self.codes[from..to])
-        } else {
-            None
-        }
-    }
-}
-
 /// Interface to load a codebook.
 ///
 /// Supposed to be implemented by a specific database.
@@ -759,7 +718,7 @@ pub trait LoadCodebook<T> {
     /// Loads a codebook at a given index.
     ///
     /// Fails if `index` is out of the bounds.
-    fn load_codebook(&self, index: usize) -> Result<Codebook<T>, Error>;
+    fn load_codebook(&self, index: usize) -> Result<BlockVectorSet<T>, Error>;
 }
 
 /// Interface to load partition centroids.
@@ -792,7 +751,7 @@ pub enum DatabaseQueryEvent {
 /// Query in a specific partition.
 struct PartitionQuery<'a, T, FS> {
     database: &'a Database<T, FS>,
-    codebooks: Ref<'a, Vec<Codebook<T>>>,
+    codebooks: Ref<'a, Vec<BlockVectorSet<T>>>,
     partition_index: usize,
     localized: Vec<T>, // query vector - partition centroid
 }
@@ -822,7 +781,7 @@ where
             let subv = &self.localized[from..to];
             let codebook = &self.codebooks[di];
             for ci in 0..num_codes {
-                let code_vector = codebook.get_code_vector(ci).unwrap();
+                let code_vector = codebook.get(ci);
                 let d = &mut vector_buf[..];
                 subtract(subv, code_vector, d);
                 distance_table.push(dot(d, d));

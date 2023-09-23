@@ -7,8 +7,6 @@ use crate::io::{FileSystem, HashedFileOut};
 use crate::kmeans::Codebook;
 use crate::protos::database::{
     AttributesLog as ProtosAttributesLog,
-    Vector as ProtosVector,
-    Codebook as ProtosCodebook,
     Database as ProtosDatabase,
     OperationSetAttribute as ProtosOperationSetAttribute,
     Partition as ProtosPartition,
@@ -32,7 +30,6 @@ where
     VS: VectorSet<T>,
     DatabaseSerialize<'a, T, VS>: Serialize<ProtosDatabase>,
     Partition<T>: Serialize<ProtosPartition>,
-    Codebook<T>: Serialize<ProtosCodebook>,
     BlockVectorSet<T>: Serialize<ProtosVectorSet>,
     FS: FileSystem,
 {
@@ -118,7 +115,7 @@ fn serialize_codebooks<T, FS>(
     fs: &mut FS,
 ) -> Result<Vec<String>, Error>
 where
-    Codebook<T>: Serialize<ProtosCodebook>,
+    BlockVectorSet<T>: Serialize<ProtosVectorSet>,
     FS: FileSystem,
 {
     let mut codebook_ids = Vec::with_capacity(codebooks.len());
@@ -135,10 +132,10 @@ fn serialize_codebook<T, FS>(
     fs: &mut FS,
 ) -> Result<String, Error>
 where
-    Codebook<T>: Serialize<ProtosCodebook>,
+    BlockVectorSet<T>: Serialize<ProtosVectorSet>,
     FS: FileSystem,
 {
-    let codebook = codebook.serialize()?;
+    let codebook = codebook.centroids.serialize()?;
     let mut f = fs.create_hashed_file_in("codebooks")?;
     write_message(&codebook, &mut f)?;
     f.persist(PROTOBUF_EXTENSION)
@@ -240,22 +237,5 @@ impl Serialize<ProtosPartition> for Partition<f32> {
         partition.encoded_vectors =
             Some(self.encoded_vectors.serialize()?).into();
         Ok(partition)
-    }
-}
-
-impl Serialize<ProtosCodebook> for Codebook<f32> {
-    fn serialize(&self) -> Result<ProtosCodebook, Error> {
-        let mut codebook = ProtosCodebook::new();
-        codebook.vector_size = self.centroids.vector_size() as u32;
-        codebook.num_codes = self.centroids.len() as u32;
-        codebook.codes.reserve(self.centroids.len());
-        for ci in 0..self.centroids.len() {
-            let centroid = self.centroids.get(ci);
-            let mut code = ProtosVector::new();
-            code.elements.reserve(centroid.len());
-            code.elements.extend_from_slice(centroid);
-            codebook.codes.push(code);
-        }
-        Ok(codebook)
     }
 }

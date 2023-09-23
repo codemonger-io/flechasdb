@@ -13,24 +13,25 @@ message Database {
   // Number of codes in each codebook.
   uint32 num_codes = 4;
 
-  // Reference IDs of the partitions.
+  // Reference IDs of the partitions (→ Vec<Partition>).
   // Reference ID is supposed to be a URL-safe Base-64 encoded SHA-256 digest
   // of a serialized partition.
   // Number of elements must match num_partitions.
   repeated string partition_ids = 10;
 
-  // Reference IDs of the partition centroids.
+  // Reference IDs of the partition centroids (→ VectorSet).
   // Reference ID is supposed to be a URL-safe Base-64 encoded SHA-256 digest
   // of the serialized partition centroids.
   string partition_centroids_id = 11;
 
-  // Reference IDs of the codebooks.
+  // Reference IDs of the codebooks (→ Vec<VectorSet>).
   // Reference ID is supposed to be a URL-safe Base-64 encoded SHA-256 digest
   // of a serialized codebook.
+  // Each codebook must have num_codes vectors.
   // Number of elements must match num_divisions.
   repeated string codebook_ids = 12;
 
-  // Reference IDs of the attributes logs.
+  // Reference IDs of the attributes logs (→ Vec<AttributesLog>).
   // Reference ID is supposed to be a URL-safe Base-64 encoded SHA-256 digest
   // of a serialized attributes log.
   // Each partition has a separate attributes log.
@@ -55,17 +56,6 @@ message Partition {
 
   // Vector IDs. Must be unique across the database.
   repeated Uuid vector_ids = 12;
-}
-
-// Codebook.
-message Codebook {
-  // Vector size. Must be Database::vector_size / Database::num_divisions.
-  uint32 vector_size = 1;
-  // Number of codes in the codebook. Must match Database::num_codes.
-  uint32 num_codes = 2;
-
-  // Codes. Number of elements is given by num_codes.
-  repeated Vector codes = 10;
 }
 
 // Vector set.
@@ -116,13 +106,6 @@ message OperationSetAttribute {
   string name = 2;
   // Value of the attribute to set.
   AttributeValue value = 3;
-}
-
-// Vector.
-message Vector {
-  // Vector elements.
-  // Number of elements must match vector_size of the container.
-  repeated float elements = 1;
 }
 
 // UUID.

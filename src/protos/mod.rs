@@ -90,14 +90,6 @@ mod tests {
     }
 
     #[test]
-    fn codebook_can_be_newed() {
-        let codebook = database::Codebook::new();
-        assert_eq!(codebook.vector_size, 0);
-        assert_eq!(codebook.num_codes, 0);
-        assert!(codebook.codes.is_empty());
-    }
-
-    #[test]
     fn uuid_can_be_serialized() {
         let upper: u64 = 0xa1a2a3a4b1b2c1c2;
         let lower: u64 = 0xd1d2d3d4d5d6d7d8;
