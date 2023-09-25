@@ -23,9 +23,9 @@ pub trait VectorSet<T> {
 }
 
 /// Vectors in a contiguous array.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct BlockVectorSet<T> {
-    pub data: Vec<T>,
+    data: Vec<T>,
 
     /// Vector size.
     pub vector_size: usize,
@@ -60,7 +60,7 @@ impl<T> BlockVectorSet<T> {
     }
 
     /// Returns the size of each vector in the vector set.
-    pub fn vector_size(&self) -> usize {
+    pub const fn vector_size(&self) -> usize {
         self.vector_size
     }
 
@@ -78,18 +78,6 @@ impl<T> BlockVectorSet<T> {
         let from = i * self.vector_size;
         let to = from + self.vector_size;
         &mut self.data[from..to]
-    }
-}
-
-impl<T> Clone for BlockVectorSet<T>
-where
-    T: Clone,
-{
-    fn clone(&self) -> Self {
-        Self {
-            data: self.data.clone(),
-            vector_size: self.vector_size,
-        }
     }
 }
 
