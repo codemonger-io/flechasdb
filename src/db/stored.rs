@@ -4,7 +4,6 @@ use core::borrow::Borrow;
 use core::cell::{OnceCell, Ref, RefCell, RefMut};
 use core::hash::Hash;
 use core::num::NonZeroUsize;
-use std::collections::HashMap;
 use std::collections::hash_map::{Entry as HashMapEntry};
 use uuid::Uuid;
 
@@ -22,7 +21,7 @@ use crate::protos::{Deserialize, read_message};
 use crate::slice::AsSlice;
 use crate::vector::BlockVectorSet;
 
-use super::{Attributes, AttributeValue};
+use super::{AttributeTable, AttributeValue, Attributes};
 
 pub const PROTOBUF_EXTENSION: &str = "binpb";
 
@@ -732,9 +731,6 @@ pub trait LoadPartitionCentroids<T> {
     /// - number of partitions does not match
     fn load_partition_centroids(&self) -> Result<BlockVectorSet<T>, Error>;
 }
-
-/// Attribute table.
-pub type AttributeTable = HashMap<Uuid, Attributes>;
 
 /// Events emitted while querying.
 pub enum DatabaseQueryEvent {
