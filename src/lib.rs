@@ -1,3 +1,4 @@
+pub mod asyncdb;
 pub mod db;
 pub mod distribution;
 pub mod error;
