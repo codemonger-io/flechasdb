@@ -282,34 +282,34 @@ where
     ) -> Result<Vec<QueryResult<T>>, Error>
     where
         V: AsSlice<T> + ?Sized,
-        EventHandler: FnMut(DatabaseQueryEvent) -> (),
+        EventHandler: FnMut(QueryEvent) -> (),
     {
         macro_rules! event {
             ($event:expr) => {
                 event_handler.iter_mut().for_each(|f| f($event));
             };
         }
-        event!(DatabaseQueryEvent::StartingPartitionSelection);
+        event!(QueryEvent::StartingPartitionSelection);
         let v = v.as_slice();
         let queries = self.query_partitions(v, nprobe)?;
-        event!(DatabaseQueryEvent::FinishedPartitionSelection);
+        event!(QueryEvent::FinishedPartitionSelection);
         let mut all_results: Vec<QueryResult<T>> = Vec::new();
         for query in &queries {
-            event!(DatabaseQueryEvent::StartingPartitionQuery(
+            event!(QueryEvent::StartingPartitionQuery(
                 query.partition_index,
             ));
             let results = query.execute()?;
             all_results.extend(results);
-            event!(DatabaseQueryEvent::FinishedPartitionQuery(
+            event!(QueryEvent::FinishedPartitionQuery(
                 query.partition_index,
             ));
         }
-        event!(DatabaseQueryEvent::StartingResultSelection);
+        event!(QueryEvent::StartingResultSelection);
         all_results.sort_by(|lhs, rhs| {
             lhs.squared_distance.partial_cmp(&rhs.squared_distance).unwrap()
         });
         all_results.truncate(k.get());
-        event!(DatabaseQueryEvent::FinishedResultSelection);
+        event!(QueryEvent::FinishedResultSelection);
         Ok(all_results)
     }
 
@@ -457,7 +457,7 @@ where
 }
 
 /// Database query event.
-pub enum DatabaseQueryEvent {
+pub enum QueryEvent {
     StartingPartitionSelection,
     FinishedPartitionSelection,
     StartingPartitionQuery(usize),

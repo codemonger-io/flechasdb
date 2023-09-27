@@ -6,7 +6,7 @@ use flechasdb::db::build::{
     BuildEvent,
     Database,
     DatabaseBuilder,
-    DatabaseQueryEvent,
+    QueryEvent,
 };
 use flechasdb::db::build::proto::serialize_database;
 use flechasdb::db::stored;
@@ -107,25 +107,25 @@ fn generate() -> Result<(), Error> {
         NP.try_into().unwrap(),
         Some(move |event| {
             match event {
-                DatabaseQueryEvent::StartingPartitionSelection |
-                DatabaseQueryEvent::StartingPartitionQuery(_) |
-                DatabaseQueryEvent::StartingResultSelection => {
+                QueryEvent::StartingPartitionSelection |
+                QueryEvent::StartingPartitionQuery(_) |
+                QueryEvent::StartingResultSelection => {
                     event_time = std::time::Instant::now();
                 },
-                DatabaseQueryEvent::FinishedPartitionSelection => {
+                QueryEvent::FinishedPartitionSelection => {
                     println!(
                         "selected partitions in {} μs",
                         event_time.elapsed().as_micros(),
                     );
                 },
-                DatabaseQueryEvent::FinishedPartitionQuery(i) => {
+                QueryEvent::FinishedPartitionQuery(i) => {
                     println!(
                         "queried partition {} in {} μs",
                         i,
                         event_time.elapsed().as_micros(),
                     );
                 },
-                DatabaseQueryEvent::FinishedResultSelection => {
+                QueryEvent::FinishedResultSelection => {
                     println!(
                         "selected results in {} μs",
                         event_time.elapsed().as_micros(),
