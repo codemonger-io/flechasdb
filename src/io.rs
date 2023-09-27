@@ -22,20 +22,16 @@ pub trait FileSystem {
     fn create_hashed_file(&self) -> Result<Self::HashedFileOut, Error>;
 
     /// Creates a hashed file in a given directory.
-    fn create_hashed_file_in<P>(
+    fn create_hashed_file_in(
         &self,
-        path: P,
-    ) -> Result<Self::HashedFileOut, Error>
-    where
-        P: AsRef<str>;
+        path: impl AsRef<str>,
+    ) -> Result<Self::HashedFileOut, Error>;
 
     /// Opens a file whose name is the hash of its contents.
-    fn open_hashed_file<P>(
+    fn open_hashed_file(
         &self,
-        path: P,
-    ) -> Result<Self::HashedFileIn, Error>
-    where
-        P: AsRef<str>;
+        path: impl AsRef<str>,
+    ) -> Result<Self::HashedFileIn, Error>;
 }
 
 /// File whose name will be the hash of its contents.
@@ -47,9 +43,7 @@ pub trait HashedFileOut: Write {
     ///
     /// Returns the encoded hash value that is supposed to be a URS-safe Base64
     /// encoded SHA256 digest.
-    fn persist<S>(self, extension: S) -> Result<String, Error>
-    where
-        S: AsRef<str>;
+    fn persist(self, extension: impl AsRef<str>) -> Result<String, Error>;
 }
 
 /// File whose name is the hash of its contents.
@@ -71,10 +65,7 @@ pub struct LocalFileSystem {
 
 impl LocalFileSystem {
     /// Creates a local file system working under a given base path.
-    pub fn new<P>(base_path: P) -> Self
-    where
-        P: AsRef<Path>,
-    {
+    pub fn new(base_path: impl AsRef<Path>) -> Self {
         Self {
             base_path: base_path.as_ref().to_path_buf(),
         }
@@ -89,23 +80,17 @@ impl FileSystem for LocalFileSystem {
         LocalHashedFileOut::create(self.base_path.clone())
     }
 
-    fn create_hashed_file_in<P>(
+    fn create_hashed_file_in(
         &self,
-        path: P,
-    ) -> Result<Self::HashedFileOut, Error>
-    where
-        P: AsRef<str>,
-    {
+        path: impl AsRef<str>,
+    ) -> Result<Self::HashedFileOut, Error> {
         LocalHashedFileOut::create(self.base_path.join(path.as_ref()))
     }
 
-    fn open_hashed_file<P>(
+    fn open_hashed_file(
         &self,
-        path: P,
-    ) -> Result<Self::HashedFileIn, Error>
-    where
-        P: AsRef<str>,
-    {
+        path: impl AsRef<str>,
+    ) -> Result<Self::HashedFileIn, Error> {
         LocalHashedFileIn::open(self.base_path.join(path.as_ref()))
     }
 }
@@ -146,10 +131,7 @@ impl Write for LocalHashedFileOut {
 }
 
 impl HashedFileOut for LocalHashedFileOut {
-    fn persist<S>(mut self, extension: S) -> Result<String, Error>
-    where
-        S: AsRef<str>,
-    {
+    fn persist(mut self, extension: impl AsRef<str>) -> Result<String, Error> {
         self.flush()?;
         if !self.base_path.exists() {
             std::fs::create_dir_all(&self.base_path)?;
