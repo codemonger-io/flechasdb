@@ -163,11 +163,11 @@ where
         // queries k-NN
         let time = std::time::Instant::now();
         let mut event_time = std::time::Instant::now();
-        let results = db.query(
+        let results = db.query_with_events(
             &qv,
             K.try_into().unwrap(),
             NP.try_into().unwrap(),
-            Some(move |event| {
+            move |event| {
                 match event {
                     stored::DatabaseQueryEvent::StartingQueryInitialization |
                     stored::DatabaseQueryEvent::StartingPartitionSelection |
@@ -205,7 +205,7 @@ where
                         );
                     },
                 }
-            })
+            },
         )?;
         println!("[{}] queried k-NN in {} μs", r, time.elapsed().as_micros());
         let time = std::time::Instant::now();

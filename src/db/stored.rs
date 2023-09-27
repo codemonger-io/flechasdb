@@ -469,23 +469,34 @@ where
     ///
     /// The first call to this function will take longer because it lazily
     /// loads partition centroids, and codebooks.
-    pub fn query<V, EventHandler>(
+    pub fn query<V>(
         &self,
         v: &V,
         k: NonZeroUsize,
         nprobe: NonZeroUsize,
-        mut event_handler: Option<EventHandler>,
+    ) -> Result<Vec<QueryResult<T>>, Error>
+    where
+        V: AsSlice<T> + ?Sized,
+    {
+        self.query_with_events(v, k, nprobe, |_| {})
+    }
+
+    /// Queries k-nearest neighbors (k-NN) of a given vector.
+    ///
+    /// The first call to this function will take longer because it lazily
+    /// loads partition centroids, and codebooks.
+    pub fn query_with_events<V, EventHandler>(
+        &self,
+        v: &V,
+        k: NonZeroUsize,
+        nprobe: NonZeroUsize,
+        mut event: EventHandler,
     ) -> Result<Vec<QueryResult<T>>, Error>
     where
         V: AsSlice<T> + ?Sized,
         EventHandler: FnMut(DatabaseQueryEvent) -> (),
     {
-        macro_rules! event {
-            ($event:expr) => {
-                event_handler.iter_mut().for_each(|f| f($event))
-            };
-        }
-        event!(DatabaseQueryEvent::StartingQueryInitialization);
+        event(DatabaseQueryEvent::StartingQueryInitialization);
         if self.partition_centroids.get().is_none() {
             // lazily loads partition centroids
             self.partition_centroids
@@ -501,28 +512,28 @@ where
             }
             self.codebooks.replace(Some(codebooks));
         }
-        event!(DatabaseQueryEvent::FinishedQueryInitialization);
-        event!(DatabaseQueryEvent::StartingPartitionSelection);
+        event(DatabaseQueryEvent::FinishedQueryInitialization);
+        event(DatabaseQueryEvent::StartingPartitionSelection);
         let v = v.as_slice();
         let queries = self.query_partitions(v, nprobe)?;
-        event!(DatabaseQueryEvent::FinishedPartitionSelection);
+        event(DatabaseQueryEvent::FinishedPartitionSelection);
         let mut all_results: Vec<QueryResult<T>> = Vec::new();
         for query in queries.into_iter() {
-            event!(DatabaseQueryEvent::StartingPartitionQuery(
+            event(DatabaseQueryEvent::StartingPartitionQuery(
                 query.partition_index,
             ));
             let results = query.execute()?;
             all_results.extend(results);
-            event!(DatabaseQueryEvent::FinishedPartitionQuery(
+            event(DatabaseQueryEvent::FinishedPartitionQuery(
                 query.partition_index,
             ));
         }
-        event!(DatabaseQueryEvent::StartingResultSelection);
+        event(DatabaseQueryEvent::StartingResultSelection);
         all_results.sort_by(|lhs, rhs| {
             lhs.squared_distance.partial_cmp(&rhs.squared_distance).unwrap()
         });
         all_results.truncate(k.get());
-        event!(DatabaseQueryEvent::FinishedResultSelection);
+        event(DatabaseQueryEvent::FinishedResultSelection);
         Ok(all_results)
     }
 
