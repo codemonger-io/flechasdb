@@ -70,49 +70,49 @@ where
     }
 
     /// Builds the vector database.
-    pub fn build<EventHandler>(
+    pub fn build(self) -> Result<Database<T, VS>, Error> {
+        self.build_with_events(|_| {})
+    }
+
+    /// Builds the vector database with an event handler.
+    pub fn build_with_events<EventHandler>(
         self,
-        mut event_handler: Option<EventHandler>,
+        mut event: EventHandler,
     ) -> Result<Database<T, VS>, Error>
     where
         EventHandler: FnMut(DatabaseBuilderEvent) -> (),
     {
-        macro_rules! event {
-            ($event:expr) => {
-                event_handler.iter_mut().for_each(|f| f($event));
-            };
-        }
         // assigns IDs to vectors
-        event!(DatabaseBuilderEvent::StartingIdAssignment);
+        event(DatabaseBuilderEvent::StartingIdAssignment);
         let mut vector_ids: Vec<Uuid> = Vec::with_capacity(self.vs.len());
         for _ in 0..self.vs.len() {
             vector_ids.push(Uuid::new_v4());
         }
-        event!(DatabaseBuilderEvent::FinishedIdAssignment);
+        event(DatabaseBuilderEvent::FinishedIdAssignment);
         // partitions all the data
-        event!(DatabaseBuilderEvent::StartingPartitioning);
+        event(DatabaseBuilderEvent::StartingPartitioning);
         let partitions = self.vs.partition(
             self.num_partitions.try_into().unwrap(),
         )?;
-        event!(DatabaseBuilderEvent::FinishedPartitioning);
+        event(DatabaseBuilderEvent::FinishedPartitioning);
         // divides residual vectors
-        event!(DatabaseBuilderEvent::StartingSubvectorDivision);
+        event(DatabaseBuilderEvent::StartingSubvectorDivision);
         let divided = divide_vector_set(
             &partitions.residues,
             self.num_divisions.try_into().unwrap(),
         )?;
-        event!(DatabaseBuilderEvent::FinishedSubvectorDivision);
+        event(DatabaseBuilderEvent::FinishedSubvectorDivision);
         // builds codebooks for residues
         let mut codebooks: Vec<Codebook<T>> = Vec::with_capacity(
             self.num_divisions.try_into().unwrap(),
         );
         for (i, subvs) in divided.iter().enumerate() {
-            event!(DatabaseBuilderEvent::StartingQuantization(i));
+            event(DatabaseBuilderEvent::StartingQuantization(i));
             codebooks.push(cluster(
                 subvs,
                 self.num_clusters.try_into().unwrap(),
             )?);
-            event!(DatabaseBuilderEvent::FinishedQuantization(i));
+            event(DatabaseBuilderEvent::FinishedQuantization(i));
         }
         Ok(Database {
             vector_size: partitions.residues.vector_size(),

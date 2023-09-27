@@ -54,7 +54,7 @@ fn generate() -> Result<(), Error> {
         .with_partitions(P.try_into().unwrap())
         .with_divisions(D.try_into().unwrap())
         .with_clusters(C.try_into().unwrap())
-        .build(Some(move |event| {
+        .build_with_events(move |event| {
             match event {
                 DatabaseBuilderEvent::StartingIdAssignment |
                 DatabaseBuilderEvent::StartingPartitioning |
@@ -88,7 +88,7 @@ fn generate() -> Result<(), Error> {
                     );
                 },
             };
-        }))?;
+        })?;
     println!("built database in {} μs", time.elapsed().as_micros());
     // sets attributes
     for i in 0..N {
