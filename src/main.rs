@@ -3,9 +3,9 @@ use rand::Rng;
 use std::path::Path;
 
 use flechasdb::db::build::{
+    BuildEvent,
     Database,
     DatabaseBuilder,
-    DatabaseBuilderEvent,
     DatabaseQueryEvent,
 };
 use flechasdb::db::build::proto::serialize_database;
@@ -56,31 +56,31 @@ fn generate() -> Result<(), Error> {
         .with_clusters(C.try_into().unwrap())
         .build_with_events(move |event| {
             match event {
-                DatabaseBuilderEvent::StartingIdAssignment |
-                DatabaseBuilderEvent::StartingPartitioning |
-                DatabaseBuilderEvent::StartingSubvectorDivision |
-                DatabaseBuilderEvent::StartingQuantization(_) => {
+                BuildEvent::StartingIdAssignment |
+                BuildEvent::StartingPartitioning |
+                BuildEvent::StartingSubvectorDivision |
+                BuildEvent::StartingQuantization(_) => {
                     event_time = std::time::Instant::now();
                 },
-                DatabaseBuilderEvent::FinishedIdAssignment => {
+                BuildEvent::FinishedIdAssignment => {
                     println!(
                         "assigned vector IDs in {} μs",
                         event_time.elapsed().as_micros(),
                     );
                 },
-                DatabaseBuilderEvent::FinishedPartitioning => {
+                BuildEvent::FinishedPartitioning => {
                     println!(
                         "partitioned data in {} μs",
                         event_time.elapsed().as_micros(),
                     );
                 },
-                DatabaseBuilderEvent::FinishedSubvectorDivision => {
+                BuildEvent::FinishedSubvectorDivision => {
                     println!(
                         "divided data in {} μs",
                         event_time.elapsed().as_micros(),
                     );
                 },
-                DatabaseBuilderEvent::FinishedQuantization(i) => {
+                BuildEvent::FinishedQuantization(i) => {
                     println!(
                         "quantized division {} in {} μs",
                         i,
