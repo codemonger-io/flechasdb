@@ -38,7 +38,7 @@ pin_project! {
         v: &'v V,
         k: usize,
         nprobe: usize,
-        event_handler: Option<EV>,
+        event_handler: EV,
         partition_centroids: Option<&'db BlockVectorSet<T>>,
         #[pin]
         load_partition_centroids: Option<Pin<Box<
@@ -174,7 +174,7 @@ where
         v: &'v V,
         k: NonZeroUsize,
         nprobe: NonZeroUsize,
-        event_handler: Option<EV>,
+        event_handler: EV,
     ) -> Self {
         Query {
             db,
@@ -209,7 +209,7 @@ where
 
         macro_rules! event {
             ($event:expr) => {
-                this.event_handler.iter_mut().for_each(|f| f($event))
+                (this.event_handler)($event)
             };
         }
 

@@ -119,12 +119,25 @@ where
     Self: 'db + LoadPartitionCentroids<'db, T>,
 {
     /// Queries k-nearest neighbors of a given vector.
-    pub fn query<'v, V, EV>(
+    pub fn query<'v, V>(
         &'db self,
         v: &'v V,
         k: NonZeroUsize,
         nprobe: NonZeroUsize,
-        event_handler: Option<EV>,
+    ) -> Query<'db, 'v, T, FS, V, impl FnMut(QueryEvent)>
+    where
+        V: AsSlice<T> + Send + ?Sized,
+    {
+        self.query_with_events(v, k, nprobe, |_| {})
+    }
+
+    /// Queries k-nearest neighbors of a given vector.
+    pub fn query_with_events<'v, V, EV>(
+        &'db self,
+        v: &'v V,
+        k: NonZeroUsize,
+        nprobe: NonZeroUsize,
+        event_handler: EV,
     ) -> Query<'db, 'v, T, FS, V, EV>
     where
         V: AsSlice<T> + Send + ?Sized,

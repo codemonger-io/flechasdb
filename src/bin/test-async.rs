@@ -26,11 +26,11 @@ async fn main() -> Result<(), Error> {
     const NP: usize = 3;
     let time = std::time::Instant::now();
     let event_time = std::time::Instant::now();
-    let results = db.query(
+    let results = db.query_with_events(
         &qv[..],
         K.try_into().unwrap(),
         NP.try_into().unwrap(),
-        Some(move |event| match event {
+        move |event| match event {
             QueryEvent::StartingLoadingPartitionCentroids =>
                 println!(
                     "starting loading partition centroids at {} μs",
@@ -95,7 +95,7 @@ async fn main() -> Result<(), Error> {
                     "finished KNN selection at {} μs",
                     event_time.elapsed().as_micros(),
                 ),
-        }),
+        },
     ).await?;
     println!("queried database in {:?} μs", time.elapsed().as_micros());
 
