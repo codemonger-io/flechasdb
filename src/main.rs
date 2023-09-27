@@ -101,11 +101,11 @@ fn generate() -> Result<(), Error> {
     // queries k-NN
     let time = std::time::Instant::now();
     let mut event_time = std::time::Instant::now();
-    let results = db.query(
+    let results = db.query_with_events(
         &qv,
         K.try_into().unwrap(),
         NP.try_into().unwrap(),
-        Some(move |event| {
+        move |event| {
             match event {
                 QueryEvent::StartingPartitionSelection |
                 QueryEvent::StartingPartitionQuery(_) |
@@ -132,7 +132,7 @@ fn generate() -> Result<(), Error> {
                     );
                 },
             }
-        })
+        },
     )?;
     println!("queried k-NN in {} μs", time.elapsed().as_micros());
     for (i, result) in results.iter().enumerate() {

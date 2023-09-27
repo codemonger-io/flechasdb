@@ -273,43 +273,51 @@ where
     VS: VectorSet<T>,
 {
     /// Queries k-nearest neighbors (k-NN) of a given vector.
-    pub fn query<V, EventHandler>(
+    pub fn query<V>(
         &self,
         v: &V,
         k: NonZeroUsize,
         nprobe: NonZeroUsize,
-        mut event_handler: Option<EventHandler>,
+    ) -> Result<Vec<QueryResult<T>>, Error>
+    where
+        V: AsSlice<T> + ?Sized,
+    {
+        self.query_with_events(v, k, nprobe, |_| {})
+    }
+
+    /// Queries k-nearest neighbors (k-NN) of a given vector.
+    pub fn query_with_events<V, EventHandler>(
+        &self,
+        v: &V,
+        k: NonZeroUsize,
+        nprobe: NonZeroUsize,
+        mut event: EventHandler,
     ) -> Result<Vec<QueryResult<T>>, Error>
     where
         V: AsSlice<T> + ?Sized,
         EventHandler: FnMut(QueryEvent) -> (),
     {
-        macro_rules! event {
-            ($event:expr) => {
-                event_handler.iter_mut().for_each(|f| f($event));
-            };
-        }
-        event!(QueryEvent::StartingPartitionSelection);
+        event(QueryEvent::StartingPartitionSelection);
         let v = v.as_slice();
         let queries = self.query_partitions(v, nprobe)?;
-        event!(QueryEvent::FinishedPartitionSelection);
+        event(QueryEvent::FinishedPartitionSelection);
         let mut all_results: Vec<QueryResult<T>> = Vec::new();
         for query in &queries {
-            event!(QueryEvent::StartingPartitionQuery(
+            event(QueryEvent::StartingPartitionQuery(
                 query.partition_index,
             ));
             let results = query.execute()?;
             all_results.extend(results);
-            event!(QueryEvent::FinishedPartitionQuery(
+            event(QueryEvent::FinishedPartitionQuery(
                 query.partition_index,
             ));
         }
-        event!(QueryEvent::StartingResultSelection);
+        event(QueryEvent::StartingResultSelection);
         all_results.sort_by(|lhs, rhs| {
             lhs.squared_distance.partial_cmp(&rhs.squared_distance).unwrap()
         });
         all_results.truncate(k.get());
-        event!(QueryEvent::FinishedResultSelection);
+        event(QueryEvent::FinishedResultSelection);
         Ok(all_results)
     }
 
