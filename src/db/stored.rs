@@ -25,15 +25,9 @@ use super::{AttributeTable, AttributeValue, Attributes};
 
 pub const PROTOBUF_EXTENSION: &str = "binpb";
 
-/// Database store.
-pub struct DatabaseStore<T, FS> {
-    _t: std::marker::PhantomData<T>,
-    _fs: std::marker::PhantomData<FS>,
-}
-
 /// Interface to load a database.
 ///
-/// Supposed to be implemented by `DatabaseStore`.
+/// Supposed to be implemented by `Database`.
 pub trait LoadDatabase<T, FS> {
     /// Loads a database.
     fn load_database<P>(fs: FS, path: P) -> Result<Database<T, FS>, Error>
@@ -584,7 +578,7 @@ where
     }
 }
 
-impl<FS> LoadDatabase<f32, FS> for DatabaseStore<f32, FS>
+impl<FS> LoadDatabase<f32, FS> for Database<f32, FS>
 where
     FS: FileSystem,
 {

@@ -10,7 +10,7 @@ use flechasdb::db::build::{
 };
 use flechasdb::db::build::proto::serialize_database;
 use flechasdb::db::stored;
-use flechasdb::db::stored::{DatabaseStore, LoadDatabase};
+use flechasdb::db::stored::LoadDatabase;
 use flechasdb::io::LocalFileSystem;
 use flechasdb::linalg::{norm2, scale_in};
 use flechasdb::vector::{BlockVectorSet, VectorSet};
@@ -239,7 +239,7 @@ where
     P: AsRef<Path> + core::fmt::Debug,
 {
     let path = path.as_ref();
-    let db = DatabaseStore::<f32, _>::load_database(
+    let db = stored::Database::<f32, _>::load_database(
         LocalFileSystem::new(path.parent().unwrap()),
         path.file_name().unwrap().to_str().unwrap(),
     )?;
