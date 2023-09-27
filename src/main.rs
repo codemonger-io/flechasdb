@@ -169,27 +169,27 @@ where
             NP.try_into().unwrap(),
             move |event| {
                 match event {
-                    stored::DatabaseQueryEvent::StartingQueryInitialization |
-                    stored::DatabaseQueryEvent::StartingPartitionSelection |
-                    stored::DatabaseQueryEvent::StartingPartitionQuery(_) |
-                    stored::DatabaseQueryEvent::StartingResultSelection => {
+                    stored::QueryEvent::StartingQueryInitialization |
+                    stored::QueryEvent::StartingPartitionSelection |
+                    stored::QueryEvent::StartingPartitionQuery(_) |
+                    stored::QueryEvent::StartingResultSelection => {
                         event_time = std::time::Instant::now();
                     },
-                    stored::DatabaseQueryEvent::FinishedQueryInitialization => {
+                    stored::QueryEvent::FinishedQueryInitialization => {
                         println!(
                             "[{}] initialized query in {} μs",
                             r,
                             event_time.elapsed().as_micros(),
                         );
                     },
-                    stored::DatabaseQueryEvent::FinishedPartitionSelection => {
+                    stored::QueryEvent::FinishedPartitionSelection => {
                         println!(
                             "[{}] selected partitions in {} μs",
                             r,
                             event_time.elapsed().as_micros(),
                         );
                     },
-                    stored::DatabaseQueryEvent::FinishedPartitionQuery(i) => {
+                    stored::QueryEvent::FinishedPartitionQuery(i) => {
                         println!(
                             "[{}] queried partition {} in {} μs",
                             r,
@@ -197,7 +197,7 @@ where
                             event_time.elapsed().as_micros(),
                         );
                     },
-                    stored::DatabaseQueryEvent::FinishedResultSelection => {
+                    stored::QueryEvent::FinishedResultSelection => {
                         println!(
                             "[{}] selected results in {} μs",
                             r,
