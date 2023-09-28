@@ -286,10 +286,8 @@ where
             }
             // loads partitions and chooses k-NN
             if !this.partition_queries.is_empty() {
-                let mut query_executed = true;
                 for query in this.partition_queries.iter_mut() {
                     if query.partition.is_none() {
-                        query_executed = false;
                         match query.as_mut().poll_loading(cx) {
                             Poll::Ready(Ok(_)) => {
                                 event!(QueryEvent::FinishedLoadingPartition(
@@ -318,7 +316,10 @@ where
                         }
                     }
                 }
-                if query_executed {
+                let query_completed = this.partition_queries
+                    .iter()
+                    .all(|q| q.results.is_some());
+                if query_completed {
                     // chooses k-NN
                     event!(QueryEvent::StartingKNNSelection);
                     let results = select_knn(this.partition_queries, *this.k);
