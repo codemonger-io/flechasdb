@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["PROTOBUF_EXTENSION"],"mod":["get_attribute","query"],"struct":["Database","Partition"],"trait":["LoadAttributesLog","LoadCodebook","LoadDatabase","LoadPartition","LoadPartitionCentroids"]};

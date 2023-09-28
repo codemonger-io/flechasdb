@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["file_descriptor"],"mod":["attribute_value"],"struct":["AttributeValue","AttributesLog","Database","EncodedVectorSet","OperationSetAttribute","Partition","Uuid","VectorSet"]};

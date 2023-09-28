@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["BuildEvent","QueryEvent"],"mod":["proto"],"struct":["Database","DatabaseBuilder","Partition","PartitionIter","PartitionQuery","QueryResult"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["cluster"],"struct":["Codebook"],"trait":["DefaultEpsilon","Scalar"]};

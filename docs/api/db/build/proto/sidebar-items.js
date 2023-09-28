@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["PROTOBUF_EXTENSION"],"fn":["serialize_database"],"struct":["DatabaseSerialize"]};

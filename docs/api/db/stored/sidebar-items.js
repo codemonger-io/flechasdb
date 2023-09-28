@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["PROTOBUF_EXTENSION"],"enum":["QueryEvent"],"struct":["Database","Partition","QueryResult"],"trait":["LoadCodebook","LoadDatabase","LoadPartition","LoadPartitionCentroids"],"type":["AttributeValueRef"]};

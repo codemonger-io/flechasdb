@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["read_message","write_message"],"mod":["database"],"trait":["Deserialize","Serialize"]};

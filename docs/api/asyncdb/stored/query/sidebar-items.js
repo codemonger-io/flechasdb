@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["QueryEvent"],"struct":["PartitionQueryResult","Query","QueryResult"]};

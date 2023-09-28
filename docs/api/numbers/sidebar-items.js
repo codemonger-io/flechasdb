@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"trait":["Abs","FromAs","Infinity","One","Sqrt","Zero"]};
