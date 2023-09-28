@@ -284,7 +284,7 @@ loaded database in 0.000205958 s
 
 ## API documentation
 
-https://codemonger-io.github.io/api/flechasdb/
+https://codemonger-io.github.io/flechasdb/api/flechasdb/
 
 ## Algorithms and structures
 
