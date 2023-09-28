@@ -2,12 +2,12 @@
 
 A lightweight vector database in your hands.
 
-`flechasdb` package is the core library of the [Flechasdb system](#flechasdb-system) written in [Rust](https://www.rust-lang.org).
+`flechasdb` package is the core library of the [FlechasDB system](#flechasdb-system) written in [Rust](https://www.rust-lang.org).
 
-## Flechasdb system
+## FlechasDB system
 
-The Flechasdb system is aiming to be a [vector database](https://www.pinecone.io/learn/vector-database/) that perfectly fits in [serverless](https://en.wikipedia.org/wiki/Serverless_computing) environments.
-The creed of the Flechasdb system is simple; it requires **no dedicated server continously running**.
+The FlechasDB system is aiming to be a [vector database](https://www.pinecone.io/learn/vector-database/) that perfectly fits in [serverless](https://en.wikipedia.org/wiki/Serverless_computing) environments.
+The creed of the FlechasDB system is simple; it requires **no dedicated server continously running**.
 
 ### Core features and progress
 
@@ -42,9 +42,10 @@ The creed of the Flechasdb system is simple; it requires **no dedicated server c
         - [ ] Get attributes attached to individual vectors
             - [x] String
             - [ ] Number
+- [ ] Update database
 - [ ] Flat database
 
-\*1: provided by another package `flechasdb-s3`.
+\*1: provided by another package [`flechasdb-s3`](https://github.com/codemonger-io/flechasdb-s3).
 
 ## Installing flechasdb
 
@@ -281,6 +282,10 @@ loaded database in 0.000205958 s
 [1] printed results in 0.000012208 s
 ```
 
+## API documentation
+
+https://codemonger-io.github.io/flechasdb/api/
+
 ## Algorithms and structures
 
 ### IndexIVFPQ
@@ -290,6 +295,22 @@ loaded database in 0.000205958 s
 ### k-means++
 
 `flechasdb` implements [k-means++](https://en.wikipedia.org/wiki/K-means%2B%2B) to initialize centroids for näive k-means clustering.
+
+### Database structure
+
+## Development
+
+### Building the libraryo
+
+```sh
+cargo build
+```
+
+### Generating documentation
+
+```sh
+cargo doc --lib --no-deps --release
+```
 
 ## Similar projects
 
