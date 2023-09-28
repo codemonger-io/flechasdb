@@ -2,6 +2,12 @@
 name = "flechasdb"
 version = "0.1.0"
 edition = "2021"
+description = "A lightweight vector database in your hands"
+authors = ["Kikuo Emoto <kemoto@codemonger.io>"]
+license = "MIT"
+repository = "https://github.com/codemonger-io/flechasdb"
+homepage = "https://github.com/codemonger-io/flechasdb"
+categories = ["vector-database", "vector-search"]
 default-run = "flechasdb"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
