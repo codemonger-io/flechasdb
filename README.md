@@ -85,16 +85,21 @@ fn main() {
     let mut rng = rand::thread_rng();
     rng.fill(&mut data[..]);
     let vs = BlockVectorSet::chunk(data, N.try_into().unwrap()).unwrap();
-    println!("prepared data at {} s", time.elapsed().as_secs_f32());
-    let db = DatabaseBuilder::new(vs)
+    println!("prepared data in {} s", time.elapsed().as_secs_f32());
+    let time = std::time::Instant::now();
+    let mut db = DatabaseBuilder::new(vs)
         .with_partitions(P.try_into().unwrap())
         .with_divisions(D.try_into().unwrap())
         .with_clusters(C.try_into().unwrap())
         .build()
         .unwrap();
-    println!("built database at {} s", time.elapsed().as_secs_f32());
+    println!("built database in {} s", time.elapsed().as_secs_f32());
+    for i in 0..M {
+        db.set_attribute_at(i, ("datum_id", i as u64)).unwrap();
+    }
+    let time = std::time::Instant::now();
     serialize_database(&db, &mut LocalFileSystem::new("testdb")).unwrap();
-    println!("serialized database at {} s", time.elapsed().as_secs_f32());
+    println!("serialized database in {} s", time.elapsed().as_secs_f32());
 }
 ```
 
@@ -102,9 +107,9 @@ You can find the complete example in [`examples/build-random`](./examples/build-
 
 FYI: It took a while on my machine (Apple M1 Pro, 32GB RAM).
 ```
-prepared data in 0.94093055 s
-built database in 870.743 s
-serialized database in 0.077745415 s
+prepared data in 0.9123601 s
+built database in 906.51526 s
+serialized database in 0.14329213 s
 ```
 
 ### Loading and querying vector database
@@ -145,9 +150,9 @@ fn main() {
         let time = std::time::Instant::now();
         for (i, result) in results.into_iter().enumerate() {
             // getting attributes will incur additional disk reads
-            let attr = db.get_attribute_of(&result, "attr").unwrap();
+            let attr = db.get_attribute_of(&result, "datum_id").unwrap();
             println!(
-                "\t{}: partition={}, approx. distance²={}, attr={:?}",
+                "\t{}: partition={}, approx. distance²={}, datum_id={:?}",
                 i,
                 result.partition_index,
                 result.squared_distance,
@@ -167,31 +172,31 @@ You can find the complete example in [`examples/query-sync`](./examples/query-sy
 
 FYI: outputs on my machine (Apple M1 Pro, 32GB RAM):
 ```
-loaded database in 0.000153583 s
-[0] queried k-NN in 0.008891375 s
-	0: partition=70, approx. distance²=131.25273, attr=None
-	1: partition=76, approx. distance²=131.99782, attr=None
-	2: partition=63, approx. distance²=132.21599, attr=None
-	3: partition=76, approx. distance²=132.30228, attr=None
-	4: partition=63, approx. distance²=132.57605, attr=None
-	5: partition=65, approx. distance²=132.68034, attr=None
-	6: partition=65, approx. distance²=132.7237, attr=None
-	7: partition=63, approx. distance²=132.7903, attr=None
-	8: partition=63, approx. distance²=132.91724, attr=None
-	9: partition=63, approx. distance²=132.9236, attr=None
-[0] printed results in 0.00073575 s
-[1] queried k-NN in 0.001442917 s
-	0: partition=70, approx. distance²=131.25273, attr=None
-	1: partition=76, approx. distance²=131.99782, attr=None
-	2: partition=63, approx. distance²=132.21599, attr=None
-	3: partition=76, approx. distance²=132.30228, attr=None
-	4: partition=63, approx. distance²=132.57605, attr=None
-	5: partition=65, approx. distance²=132.68034, attr=None
-	6: partition=65, approx. distance²=132.7237, attr=None
-	7: partition=63, approx. distance²=132.7903, attr=None
-	8: partition=63, approx. distance²=132.91724, attr=None
-	9: partition=63, approx. distance²=132.9236, attr=None
-[1] printed results in 0.000015541 s
+loaded database in 0.000142083 s
+[0] queried k-NN in 0.0078015 s
+	0: partition=95, approx. distance²=126.23533, datum_id=Some(Uint64(90884))
+	1: partition=29, approx. distance²=127.76597, datum_id=Some(Uint64(30864))
+	2: partition=95, approx. distance²=127.80611, datum_id=Some(Uint64(75236))
+	3: partition=56, approx. distance²=127.808174, datum_id=Some(Uint64(27890))
+	4: partition=25, approx. distance²=127.85459, datum_id=Some(Uint64(16417))
+	5: partition=95, approx. distance²=127.977425, datum_id=Some(Uint64(70910))
+	6: partition=25, approx. distance²=128.06209, datum_id=Some(Uint64(3237))
+	7: partition=95, approx. distance²=128.22603, datum_id=Some(Uint64(41942))
+	8: partition=79, approx. distance²=128.26906, datum_id=Some(Uint64(89799))
+	9: partition=25, approx. distance²=128.27995, datum_id=Some(Uint64(6593))
+[0] printed results in 0.003392833 s
+[1] queried k-NN in 0.001475625 s
+	0: partition=95, approx. distance²=126.23533, datum_id=Some(Uint64(90884))
+	1: partition=29, approx. distance²=127.76597, datum_id=Some(Uint64(30864))
+	2: partition=95, approx. distance²=127.80611, datum_id=Some(Uint64(75236))
+	3: partition=56, approx. distance²=127.808174, datum_id=Some(Uint64(27890))
+	4: partition=25, approx. distance²=127.85459, datum_id=Some(Uint64(16417))
+	5: partition=95, approx. distance²=127.977425, datum_id=Some(Uint64(70910))
+	6: partition=25, approx. distance²=128.06209, datum_id=Some(Uint64(3237))
+	7: partition=95, approx. distance²=128.22603, datum_id=Some(Uint64(41942))
+	8: partition=79, approx. distance²=128.26906, datum_id=Some(Uint64(89799))
+	9: partition=25, approx. distance²=128.27995, datum_id=Some(Uint64(6593))
+[1] printed results in 0.0000215 s
 ```
 
 ### Loading and querying vector database (async)
@@ -233,9 +238,9 @@ async fn main() {
         let time = std::time::Instant::now();
         for (i, result) in results.into_iter().enumerate() {
             // getting attributes will incur additional disk reads
-            let attr = result.get_attribute("attr").await.unwrap();
+            let attr = result.get_attribute("datum_id").await.unwrap();
             println!(
-                "\t{}: partition={}, approx. distance²={}, attr={:?}",
+                "\t{}: partition={}, approx. distance²={}, datum_id={:?}",
                 i,
                 result.partition_index,
                 result.squared_distance,
@@ -243,7 +248,7 @@ async fn main() {
             );
         }
         println!(
-            "[{}] printed results at {} s",
+            "[{}] printed results in {} s",
             r,
             time.elapsed().as_secs_f32(),
         );
@@ -255,31 +260,31 @@ The complete example is in [`examples/query-async`](./examples/query-async) fold
 
 FYI: outputs on my machine (Apple M1 Pro, 32GB RAM):
 ```
-loaded database in 0.000205958 s
-[0] queried k-NN in 0.008670959 s
-	0: partition=3, approx. distance²=130.65294, attr=None
-	1: partition=3, approx. distance²=130.75792, attr=None
-	2: partition=3, approx. distance²=130.77882, attr=None
-	3: partition=15, approx. distance²=130.82741, attr=None
-	4: partition=7, approx. distance²=130.92447, attr=None
-	5: partition=46, approx. distance²=131.00838, attr=None
-	6: partition=46, approx. distance²=131.03413, attr=None
-	7: partition=46, approx. distance²=131.08325, attr=None
-	8: partition=2, approx. distance²=131.09665, attr=None
-	9: partition=3, approx. distance²=131.31482, attr=None
-[0] printed results in 0.00116875 s
-[1] queried k-NN in 0.0010745 s
-	0: partition=3, approx. distance²=130.65294, attr=None
-	1: partition=3, approx. distance²=130.75792, attr=None
-	2: partition=3, approx. distance²=130.77882, attr=None
-	3: partition=15, approx. distance²=130.82741, attr=None
-	4: partition=7, approx. distance²=130.92447, attr=None
-	5: partition=46, approx. distance²=131.00838, attr=None
-	6: partition=46, approx. distance²=131.03413, attr=None
-	7: partition=46, approx. distance²=131.08325, attr=None
-	8: partition=2, approx. distance²=131.09665, attr=None
-	9: partition=3, approx. distance²=131.31482, attr=None
-[1] printed results in 0.000012208 s
+loaded database in 0.000170959 s
+[0] queried k-NN in 0.008041208 s
+	0: partition=67, approx. distance²=128.50703, datum_id=Some(Uint64(69632))
+	1: partition=9, approx. distance²=129.98079, datum_id=Some(Uint64(73093))
+	2: partition=9, approx. distance²=130.10867, datum_id=Some(Uint64(7536))
+	3: partition=20, approx. distance²=130.29523, datum_id=Some(Uint64(67750))
+	4: partition=67, approx. distance²=130.71976, datum_id=Some(Uint64(77054))
+	5: partition=9, approx. distance²=130.80556, datum_id=Some(Uint64(93180))
+	6: partition=9, approx. distance²=130.90681, datum_id=Some(Uint64(22473))
+	7: partition=9, approx. distance²=130.94006, datum_id=Some(Uint64(40167))
+	8: partition=67, approx. distance²=130.9795, datum_id=Some(Uint64(8590))
+	9: partition=9, approx. distance²=131.03018, datum_id=Some(Uint64(53138))
+[0] printed results in 0.00194175 s
+[1] queried k-NN in 0.000789417 s
+	0: partition=67, approx. distance²=128.50703, datum_id=Some(Uint64(69632))
+	1: partition=9, approx. distance²=129.98079, datum_id=Some(Uint64(73093))
+	2: partition=9, approx. distance²=130.10867, datum_id=Some(Uint64(7536))
+	3: partition=20, approx. distance²=130.29523, datum_id=Some(Uint64(67750))
+	4: partition=67, approx. distance²=130.71976, datum_id=Some(Uint64(77054))
+	5: partition=9, approx. distance²=130.80556, datum_id=Some(Uint64(93180))
+	6: partition=9, approx. distance²=130.90681, datum_id=Some(Uint64(22473))
+	7: partition=9, approx. distance²=130.94006, datum_id=Some(Uint64(40167))
+	8: partition=67, approx. distance²=130.9795, datum_id=Some(Uint64(8590))
+	9: partition=9, approx. distance²=131.03018, datum_id=Some(Uint64(53138))
+[1] printed results in 0.000011084 s
 ```
 
 ## API documentation
