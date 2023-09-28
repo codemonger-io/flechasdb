@@ -84,6 +84,7 @@ message EncodedVectorSet {
 message AttributeValue {
   oneof value {
     string string_value = 1;
+    uint64 uint64_value = 2;
   }
 }
 
