@@ -537,13 +537,21 @@ where
     T: PartialOrd,
 {
     assert!(k > 0);
+    type PQR<T> = PartitionQueryResult<T>;
+    let compare = |l: &&PQR<T>, r: &&PQR<T>| {
+        l.squared_distance.partial_cmp(&r.squared_distance).unwrap()
+    };
     let mut results: Vec<_> = queries
         .iter()
-        .flat_map(|q| q.results.as_ref().unwrap().iter())
+        .flat_map(|q| {
+            let mut subresults: Vec<_> =
+                q.results.as_ref().unwrap().iter().collect();
+            subresults.sort_by(compare);
+            subresults.truncate(k);
+            subresults.into_iter()
+        })
         .collect();
-    results.sort_by(
-        |l, r| l.squared_distance.partial_cmp(&r.squared_distance).unwrap(),
-    );
+    results.sort_by(compare);
     results.truncate(k);
     results
 }
