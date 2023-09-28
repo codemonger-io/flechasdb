@@ -5,7 +5,8 @@ use tokio::io::{AsyncRead, AsyncReadExt};
 
 use crate::error::Error;
 
-/// Reads a message from a given `AsyncRead`.
+/// Reads a message from a given
+/// [`AsyncRead`](https://docs.rs/tokio/1.32.0/tokio/io/trait.AsyncRead.html).
 pub async fn read_message<M, R>(r: &mut R) -> Result<M, Error>
 where
     M: Message,

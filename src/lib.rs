@@ -1,3 +1,7 @@
+//! The core library of the FlechasDB system.
+
+#![warn(missing_docs)]
+
 pub mod asyncdb;
 pub mod db;
 pub mod distribution;

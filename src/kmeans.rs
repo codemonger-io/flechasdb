@@ -1,3 +1,5 @@
+//! k-means clustering.
+
 use core::ops::{AddAssign, Div, Mul, MulAssign, Sub, SubAssign};
 use core::num::NonZeroUsize;
 use rand::Rng;
@@ -12,6 +14,8 @@ use crate::slice::AsSlice;
 use crate::vector::{BlockVectorSet, VectorSet};
 
 /// Default epsilon value.
+///
+/// Specialized for floating point types; i.e., [`f32`], and [`f64`].
 pub trait DefaultEpsilon {
     /// Returns the default espsilon value.
     fn default_epsilon() -> Self;
@@ -30,6 +34,8 @@ impl DefaultEpsilon for f64 {
 }
 
 /// Requirements for a vector element as a scalar value.
+///
+/// [`f32`] and [`f64`] satisfy all of the curated traits.
 pub trait Scalar:
     SampleUniform
     + DefaultEpsilon
@@ -54,14 +60,14 @@ impl Scalar for f64 {}
 
 /// Codebook.
 pub struct Codebook<T> {
-    /// Centroids.
+    /// Cluster centroids.
     pub centroids: BlockVectorSet<T>,
 
-    /// Cluster indices assigned to input vectors.
+    /// Cluster (centroid) indices assigned to input vectors.
     pub indices: Vec<usize>,
 }
 
-/// Does k-means clustering.
+/// Performs k-means clustering.
 ///
 /// Fails if `vs` has fewer vectors than `k`.
 pub fn cluster<T, VS>(vs: &VS, k: NonZeroUsize) -> Result<Codebook<T>, Error>

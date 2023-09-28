@@ -1,3 +1,5 @@
+//! Extension for slices.
+
 /// Represents a type that can be referenced as a slice.
 pub trait AsSlice<T> {
     /// Returns a reference to the underlying slice.

@@ -1,7 +1,7 @@
 //! Partitions.
 //!
 //! Reference:
-//! - https://mccormickml.com/2017/10/22/product-quantizer-tutorial-part-2/
+//! - <https://mccormickml.com/2017/10/22/product-quantizer-tutorial-part-2/>
 
 use core::num::NonZeroUsize;
 
@@ -15,9 +15,9 @@ use crate::vector::{BlockVectorSet, VectorSet};
 ///
 /// Moves the input vector set to save memory.
 pub struct Partitions<T, VS> {
-    // Codebook of the partition.
+    /// Codebook of the partition.
     pub codebook: Codebook<T>,
-    // Residue vector set.
+    /// Residue vector set.
     pub residues: VS,
 }
 

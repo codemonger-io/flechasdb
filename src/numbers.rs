@@ -56,7 +56,7 @@ impl Infinity for f64 {
     }
 }
 
-/// Represents a number converted from a other primitive type.
+/// Represents a number converted from another primitive type.
 pub trait FromAs<T> {
     /// Returns the converted number.
     fn from_as(t: T) -> Self;

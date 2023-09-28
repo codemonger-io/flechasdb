@@ -1,3 +1,5 @@
+//! Protocol Buffers representing the database.
+
 use protobuf::{CodedInputStream, CodedOutputStream, Message};
 use std::io::{Read, Write};
 use uuid::Uuid;

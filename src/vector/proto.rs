@@ -1,4 +1,4 @@
-//! Protocol Buffers utilities for `vector`.
+//! Protocol Buffers utilities for [`vector`][`crate::vector`].
 
 use crate::error::Error;
 use crate::protos::{Deserialize, Serialize};

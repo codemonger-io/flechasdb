@@ -1,3 +1,5 @@
+//! Vectors.
+
 use std::num::NonZeroUsize;
 
 use crate::error::Error;
@@ -115,6 +117,7 @@ impl<'a, T, VS> SubVectorSet<'a, T, VS>
 where
     VS: VectorSet<T>,
 {
+    /// Creates a [`SubVectorSet`] of a given [`VectorSet`].
     pub fn new(vs: &'a VS, vector_size: usize, offset: usize) -> Self {
         Self {
             vs,

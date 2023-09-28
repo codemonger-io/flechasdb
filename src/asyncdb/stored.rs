@@ -110,7 +110,8 @@ where
     }
 }
 
-pub type AttributeValueRef<'a> = MappedMutexGuard<'a, AttributeValue>;
+// Reference to an attribute value.
+type AttributeValueRef<'a> = MappedMutexGuard<'a, AttributeValue>;
 
 impl<'db, T, FS> Database<T, FS>
 where
@@ -174,9 +175,9 @@ impl<T> Partition<T> {
     }
 }
 
-/// Interface to load a database.
+/// Capability of loading a database.
 ///
-/// Supposed to be implemented by `DatabaseStore`.
+/// Supposed to be specialized for a specific [`Database`].
 #[async_trait]
 pub trait LoadDatabase<T, FS> {
     /// Loads a database.
@@ -187,9 +188,9 @@ pub trait LoadDatabase<T, FS> {
         P: Into<String> + Send;
 }
 
-/// Interface to load a partition centroids.
+/// Capability of loading a partition centroids.
 ///
-/// Supposed to be implemented by a specific `Database`.
+/// Supposed to be specialized for a specific [`Database`].
 #[async_trait]
 pub trait LoadPartitionCentroids<'db, T> {
     /// Loads the partition centroids of the database.
@@ -198,9 +199,9 @@ pub trait LoadPartitionCentroids<'db, T> {
     ) -> Result<&'db BlockVectorSet<T>, Error>;
 }
 
-/// Interface to load a single codebook.
+/// Capability of loading a single codebook.
 ///
-/// Supposed to be implemented by a specific `Database`.
+/// Supposed to be specialized for a specific [`Database`].
 #[async_trait]
 pub trait LoadCodebook<T> {
     /// Loads a specified codebook of the database.
@@ -212,9 +213,9 @@ pub trait LoadCodebook<T> {
     ) -> Result<BlockVectorSet<T>, Error>;
 }
 
-/// Interface to load a single partition.
+/// Capability of loading a single partition.
 ///
-/// Supposed to be implementd by a specific `Database`.
+/// Supposed to be specialized for a specific [`Database`].
 #[async_trait]
 pub trait LoadPartition<'db, T> {
     /// Loads a specified partition of the database.
@@ -226,9 +227,9 @@ pub trait LoadPartition<'db, T> {
     ) -> Result<&'db Partition<T>, Error>;
 }
 
-/// Interface to load the attributes log of a partition.
+/// Capability of loading the attributes log of a partition.
 ///
-/// Supposed to be implemented by a specific `Database`.
+/// Supposed to be specialized for a specific [`Database`].
 #[async_trait]
 pub trait LoadAttributesLog<'db> {
     /// Loads the attributes log of a partition in the database.

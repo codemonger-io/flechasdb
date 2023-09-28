@@ -70,7 +70,7 @@ impl FileSystem for LocalFileSystem {
 }
 
 pin_project! {
-    /// Local file whose name will become the hash of its contents.
+    /// Local file whose name contents can be verified with the hash.
     ///
     /// File name is supposed to be a Base64 encoded URL-safe SHA256 digest of
     /// the contents plus an extension.

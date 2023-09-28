@@ -127,15 +127,23 @@ where
     }
 }
 
-/// Events from `DatabaseBuilder::build_with_events`.
+/// Events from [`DatabaseBuilder::build_with_events`].
 pub enum BuildEvent {
+    /// Starting to assign unique IDs to individual vectors.
     StartingIdAssignment,
+    /// Finished assigning unique IDs to individual vectors.
     FinishedIdAssignment,
+    /// Starting to partition vectors.
     StartingPartitioning,
+    /// Finished partitioning vectors.
     FinishedPartitioning,
+    /// Starting to divide vectors into subvectors.
     StartingSubvectorDivision,
+    /// Finished dividing vectors into subvectors.
     FinishedSubvectorDivision,
+    /// Starting to quantize subvectors in a specific division.
     StartingQuantization(usize),
+    /// Finished to quantize subvectors in a specific division.
     FinishedQuantization(usize),
 }
 
@@ -396,11 +404,11 @@ where
 /// Partition in a database.
 pub struct Partition<T> {
     // Centroid of the partition.
-    pub centroid: Vec<T>,
+    centroid: Vec<T>,
     // Encoded vectors.
-    pub encoded_vectors: BlockVectorSet<u32>,
+    encoded_vectors: BlockVectorSet<u32>,
     // Vector IDs.
-    pub vector_ids: Vec<Uuid>,
+    vector_ids: Vec<Uuid>,
 }
 
 impl<T> Partition<T> {
@@ -466,11 +474,17 @@ where
 
 /// Database query event.
 pub enum QueryEvent {
+    /// Starting to select partitions.
     StartingPartitionSelection,
+    /// Finished selecting partitions.
     FinishedPartitionSelection,
+    /// Starting to run a query on a specific partition.
     StartingPartitionQuery(usize),
+    /// Finished to run a query on a specific partition.
     FinishedPartitionQuery(usize),
+    /// Starting to select k-nearest neighbors.
     StartingResultSelection,
+    /// Finished selecting k-nearest neighbors.
     FinishedResultSelection,
 }
 

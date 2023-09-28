@@ -12,7 +12,7 @@ use crate::numbers::Zero;
 
 /// Straightforward weighted distribution.
 ///
-/// Unlike `rand::distributions::weighted::WeightedIndex`, this distribution
+/// Unlike [`rand::distributions::weighted::WeightedIndex`], this distribution
 /// won't precalculate the cumulative weights, but will do it on the fly.
 pub struct WeightedIndex<X>
 where
@@ -27,7 +27,7 @@ impl<X> WeightedIndex<X>
 where
     X: SampleUniform + Zero + AddAssign + SubAssign + PartialOrd + Copy,
 {
-    /// Creates a new `WeightedIndex` from a given `Vec`.
+    /// Creates a new [`WeightedIndex`] from a given [`Vec`].
     ///
     /// Fails if `weights` is empty,
     /// or if any of the weights is negative,

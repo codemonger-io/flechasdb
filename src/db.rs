@@ -20,6 +20,7 @@ pub type AttributeTable = HashMap<Uuid, Attributes>;
 /// Attribute value.
 #[derive(Clone, Debug, PartialEq)]
 pub enum AttributeValue {
+    /// String value.
     String(String),
 }
 

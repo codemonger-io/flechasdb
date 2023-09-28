@@ -7,6 +7,8 @@ use crate::numbers::{Abs, One, Sqrt, Zero};
 const UNROLL: usize = 16;
 
 /// Calculates the dot (inner) product of given two vectors.
+///
+/// Unrolls loops to facilitate vectorization.
 pub fn dot<T>(xs: &[T], ys: &[T]) -> T
 where
     T: Zero + AddAssign + Mul<Output = T> + Copy,
@@ -72,7 +74,7 @@ where
     }
 }
 
-/// Calculates the Euclidean norm of a scaled vector.
+// Calculates the Euclidean norm of a scaled vector.
 fn norm2_scaled<T>(xs: &[T], a: T) -> T
 where
     T: Sqrt + Zero + AddAssign + Mul<Output = T> + Copy,
@@ -201,6 +203,8 @@ where
 }
 
 /// Sums all the elements in a give vector.
+///
+/// Unrolls loops to facilitate vectorization.
 pub fn sum<T>(xs: &[T]) -> T
 where
     T: Zero + AddAssign + Copy,
@@ -243,6 +247,8 @@ where
 }
 
 /// Locates the minimum value in a given vector.
+///
+/// Unrolls loops to facilitate vectorization.
 pub fn min<T>(xs: &[T]) -> Option<T>
 where
     T: PartialOrd + Copy,
@@ -295,6 +301,8 @@ where
 }
 
 /// Locates the maximum absoulte value in a given vector.
+///
+/// Unrolls loops to facilitate vectorization.
 pub fn max_abs<T>(xs: &[T]) -> Option<T>
 where
     T: Abs + PartialOrd + Copy,

@@ -1,4 +1,6 @@
-/// Error type for flechasdb.
+//! Common error type for flechasdb.
+
+/// Common error type for flechasdb.
 #[derive(Debug)]
 pub enum Error {
     /// Invalid arguments.

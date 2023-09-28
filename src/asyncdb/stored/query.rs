@@ -55,7 +55,7 @@ pin_project! {
 
 /// Query result.
 ///
-/// Can be derefed as a `PartitionQueryResult`.
+/// Can be derefed as a [`PartitionQueryResult`].
 pub struct QueryResult<'db, T, FS>
 where
     T: Send,
@@ -146,19 +146,31 @@ pub struct PartitionQueryResult<T> {
     pub squared_distance: T,
 }
 
-/// Query event.
+/// Event notified while querying.
 pub enum QueryEvent {
+    /// Starting to load all the partition centroids.
     StartingLoadingPartitionCentroids,
+    /// Finished loading all the partition centroids.
     FinishedLoadingPartitionCentroids,
+    /// Starting to load all the codebooks.
     StartingLoadingCodebooks,
+    /// Finished loading all the codebooks.
     FinishedLoadingCodebooks,
+    /// Starting to select partitions to query.
     StartingPartitionSelection,
+    /// Finished selecting partitions to query.
     FinishedPartitionSelection,
+    /// Starting to load a single partition at a given index.
     StartingLoadingPartition(usize),
+    /// Finished loading a single partition at a given index.
     FinishedLoadingPartition(usize),
+    /// Starting to run query on a single partition at a given index.
     StartingPartitionQueryExecution(usize),
+    /// Finished running query on a single partition at a given index.
     FinishedPartitionQueryExecution(usize),
+    /// Starting to select k-nearest neighbors (k-NN).
     StartingKNNSelection,
+    /// Finished selecting k-nearest neighbors (k-NN).
     FinishedKNNSelection,
 }
 

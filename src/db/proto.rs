@@ -1,4 +1,4 @@
-//! Protocol Buffers utilities for `db` module.
+//! Protocol Buffers utilities for [`db`][`crate::db`] module.
 
 use crate::error::Error;
 use crate::protos::{Deserialize, Serialize};

@@ -23,11 +23,12 @@ use crate::vector::BlockVectorSet;
 
 use super::{AttributeTable, AttributeValue, Attributes};
 
+/// Extension of a Protocol Buffers file.
 pub const PROTOBUF_EXTENSION: &str = "binpb";
 
-/// Interface to load a database.
+/// Capability of loading a database.
 ///
-/// Supposed to be implemented by `Database`.
+/// Supposed to be specifalized for a specific [`Database`].
 pub trait LoadDatabase<T, FS> {
     /// Loads a database.
     fn load_database<P>(fs: FS, path: P) -> Result<Database<T, FS>, Error>
@@ -705,9 +706,9 @@ impl<T> Partition<T> {
     }
 }
 
-/// Interface to load a partition.
+/// Capability of loading a partition.
 ///
-/// Supposed to be implemented by a specific database.
+/// Supposed to be specialized for a specific [`Database`].
 pub trait LoadPartition<T> {
     /// Loads a partition at a given index.
     ///
@@ -715,9 +716,9 @@ pub trait LoadPartition<T> {
     fn load_partition(&self, index: usize) -> Result<Partition<T>, Error>;
 }
 
-/// Interface to load a codebook.
+/// Capability of loading a codebook.
 ///
-/// Supposed to be implemented by a specific database.
+/// Supposed to be specialized for a specific [`Database`].
 pub trait LoadCodebook<T> {
     /// Loads a codebook at a given index.
     ///
@@ -725,9 +726,9 @@ pub trait LoadCodebook<T> {
     fn load_codebook(&self, index: usize) -> Result<BlockVectorSet<T>, Error>;
 }
 
-/// Interface to load partition centroids.
+/// Capability of loading partition centroids.
 ///
-/// Supposed to be implemented by a specific database.
+/// Supposed to be specialized for a specific [`Database`].
 pub trait LoadPartitionCentroids<T> {
     /// Loads partition centroids.
     ///
@@ -739,13 +740,21 @@ pub trait LoadPartitionCentroids<T> {
 
 /// Events emitted while querying.
 pub enum QueryEvent {
+    /// Starting to initialize a query.
     StartingQueryInitialization,
+    /// Finished initializing a query.
     FinishedQueryInitialization,
+    /// Starting to select partitions to query.
     StartingPartitionSelection,
+    /// Finished selecting partitions to query.
     FinishedPartitionSelection,
+    /// Starting to run a query on a specific partition.
     StartingPartitionQuery(usize),
+    /// Finished running a query on a specific partition.
     FinishedPartitionQuery(usize),
+    /// Starting to select k-nearest neighbors.
     StartingResultSelection,
+    /// Finished selecting k-nearest neighbors.
     FinishedResultSelection,
 }
 

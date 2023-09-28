@@ -1,4 +1,4 @@
-/// `build::Database` into Protocol Buffers data.
+//! [`Database`] into Protocol Buffers data.
 
 use core::iter::IntoIterator;
 
@@ -20,7 +20,7 @@ use super::{Database, Partition};
 /// Extension of a Protocol Buffers file.
 pub const PROTOBUF_EXTENSION: &str = "binpb";
 
-/// Serializes `Database`.
+/// Serializes [`Database`].
 pub fn serialize_database<'a, T, VS, FS>(
     db: &'a Database<T, VS>,
     fs: &mut FS,
@@ -180,7 +180,7 @@ where
     Ok(attributes_log_ids)
 }
 
-/// Serializable form of `Database`.
+/// Serializable form of [`Database`].
 pub struct DatabaseSerialize<'a, T, VS>
 where
     VS: VectorSet<T>,
