@@ -65,7 +65,7 @@ where
     }
 }
 
-impl<'a, 'b, T, VS> Iterator for AllVectorIterator<'a, T, VS>
+impl<'a, T, VS> Iterator for AllVectorIterator<'a, T, VS>
 where
     T: Scalar,
     VS: VectorSet<T>,
