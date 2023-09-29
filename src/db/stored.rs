@@ -739,6 +739,7 @@ pub trait LoadPartitionCentroids<T> {
 }
 
 /// Events emitted while querying.
+#[derive(Debug)]
 pub enum QueryEvent {
     /// Starting to initialize a query.
     StartingQueryInitialization,

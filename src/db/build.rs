@@ -128,6 +128,7 @@ where
 }
 
 /// Events from [`DatabaseBuilder::build_with_events`].
+#[derive(Debug)]
 pub enum BuildEvent {
     /// Starting to assign unique IDs to individual vectors.
     StartingIdAssignment,
@@ -473,6 +474,7 @@ where
 }
 
 /// Database query event.
+#[derive(Debug)]
 pub enum QueryEvent {
     /// Starting to select partitions.
     StartingPartitionSelection,

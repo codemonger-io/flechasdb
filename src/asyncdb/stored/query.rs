@@ -147,6 +147,7 @@ pub struct PartitionQueryResult<T> {
 }
 
 /// Event notified while querying.
+#[derive(Debug)]
 pub enum QueryEvent {
     /// Starting to load all the partition centroids.
     StartingLoadingPartitionCentroids,
