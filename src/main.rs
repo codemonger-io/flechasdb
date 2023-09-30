@@ -87,6 +87,9 @@ fn generate() -> Result<(), Error> {
                         event_time.elapsed().as_micros(),
                     );
                 },
+                BuildEvent::ClusterEvent(e) => {
+                    println!("cluster event: {:?}", e);
+                },
             };
         })?;
     println!("built database in {} μs", time.elapsed().as_micros());
