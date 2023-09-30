@@ -67,6 +67,26 @@ pub struct Codebook<T> {
     pub indices: Vec<usize>,
 }
 
+/// Event notified while clustering.
+#[derive(Debug)]
+pub enum ClusterEvent<'a, T> {
+    /// Starting centroid initialization.
+    StartingCentroidInitialization,
+    /// Finished centroid initialization.
+    FinishedCentroidInitialization,
+    /// Starting n-th centroid update.
+    StartingCentroidUpdate(usize),
+    /// Finished n-th centroid udpate.
+    ///
+    /// The second argument is the normalized magnitude of the change in
+    /// centroids.
+    FinishedCentroidUpdate(usize, &'a T),
+    /// Starting n-th centroid reassignment.
+    StartingCentroidReassignment(usize),
+    /// Finished n-th centroid reassignment.
+    FinishedCentroidReassignment(usize),
+}
+
 /// Performs k-means clustering.
 ///
 /// Fails if `vs` has fewer vectors than `k`.
@@ -74,6 +94,22 @@ pub fn cluster<T, VS>(vs: &VS, k: NonZeroUsize) -> Result<Codebook<T>, Error>
 where
     T: Scalar,
     VS: VectorSet<T>,
+{
+    cluster_with_events(vs, k, |_| {})
+}
+
+/// Performs k-means clustering.
+///
+/// Fails if `vs` has fewer vectors than `k`.
+pub fn cluster_with_events<T, VS, EV>(
+    vs: &VS,
+    k: NonZeroUsize,
+    mut event_handler: EV,
+) -> Result<Codebook<T>, Error>
+where
+    T: Scalar,
+    VS: VectorSet<T>,
+    EV: FnMut(ClusterEvent<'_, T>) -> (),
 {
     const R: usize = 100;
     let k = k.get();
@@ -83,15 +119,21 @@ where
         ));
     }
     // initializes centroids with k-means++
+    event_handler(ClusterEvent::StartingCentroidInitialization);
     let mut codebook = initialize_centroids(vs, k);
-    for _ in 0..R {
+    event_handler(ClusterEvent::FinishedCentroidInitialization);
+    for r in 0..R {
         // updates centroids
+        event_handler(ClusterEvent::StartingCentroidUpdate(r));
         let gradient = update_centroids(vs, &mut codebook);
+        event_handler(ClusterEvent::FinishedCentroidUpdate(r, &gradient));
         if gradient < T::default_epsilon() {
             break;
         }
         // re-assigns centroids
+        event_handler(ClusterEvent::StartingCentroidReassignment(r));
         reassign_centroids(vs, &mut codebook);
+        event_handler(ClusterEvent::FinishedCentroidReassignment(r));
     }
     Ok(codebook)
 }

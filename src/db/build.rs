@@ -9,7 +9,7 @@ use std::collections::hash_map::{Entry as HashMapEntry};
 use uuid::Uuid;
 
 use crate::error::Error;
-use crate::kmeans::{Codebook, Scalar, cluster};
+use crate::kmeans::{ClusterEvent, Codebook, Scalar, cluster_with_events};
 use crate::linalg::{dot, subtract_in};
 use crate::partitions::{Partitioning, Partitions};
 use crate::slice::AsSlice;
@@ -80,7 +80,7 @@ where
         mut event: EventHandler,
     ) -> Result<Database<T, VS>, Error>
     where
-        EventHandler: FnMut(BuildEvent) -> (),
+        EventHandler: FnMut(BuildEvent<'_, T>) -> (),
     {
         // assigns IDs to vectors
         event(BuildEvent::StartingIdAssignment);
@@ -91,8 +91,9 @@ where
         event(BuildEvent::FinishedIdAssignment);
         // partitions all the data
         event(BuildEvent::StartingPartitioning);
-        let partitions = self.vs.partition(
+        let partitions = self.vs.partition_with_events(
             self.num_partitions.try_into().unwrap(),
+            |e| event(BuildEvent::ClusterEvent(e)),
         )?;
         event(BuildEvent::FinishedPartitioning);
         // divides residual vectors
@@ -108,9 +109,10 @@ where
         );
         for (i, subvs) in divided.iter().enumerate() {
             event(BuildEvent::StartingQuantization(i));
-            codebooks.push(cluster(
+            codebooks.push(cluster_with_events(
                 subvs,
                 self.num_clusters.try_into().unwrap(),
+                |e| event(BuildEvent::ClusterEvent(e)),
             )?);
             event(BuildEvent::FinishedQuantization(i));
         }
@@ -129,7 +131,7 @@ where
 
 /// Events from [`DatabaseBuilder::build_with_events`].
 #[derive(Debug)]
-pub enum BuildEvent {
+pub enum BuildEvent<'a, T> {
     /// Starting to assign unique IDs to individual vectors.
     StartingIdAssignment,
     /// Finished assigning unique IDs to individual vectors.
@@ -146,6 +148,8 @@ pub enum BuildEvent {
     StartingQuantization(usize),
     /// Finished to quantize subvectors in a specific division.
     FinishedQuantization(usize),
+    /// Event from clustering.
+    ClusterEvent(ClusterEvent<'a, T>),
 }
 
 /// Database.
@@ -175,18 +179,23 @@ impl<T, VS> Database<T, VS>
 where
     VS: VectorSet<T>,
 {
+    /// Returns the number of vectors in the database.
+    pub fn num_vectors(&self) -> usize {
+        self.vector_ids.len()
+    }
+
     /// Returns the vector size.
-    pub fn vector_size(&self) -> usize {
+    pub const fn vector_size(&self) -> usize {
         self.vector_size
     }
 
     /// Returns the number of partitions.
-    pub fn num_partitions(&self) -> usize {
+    pub const fn num_partitions(&self) -> usize {
         self.num_partitions
     }
 
     /// Returns the number of subvector divisions.
-    pub fn num_divisions(&self) -> usize {
+    pub const fn num_divisions(&self) -> usize {
         self.num_divisions
     }
 
@@ -196,7 +205,7 @@ where
     }
 
     /// Returns the number of clusters.
-    pub fn num_clusters(&self) -> usize {
+    pub const fn num_clusters(&self) -> usize {
         self.num_clusters
     }
 

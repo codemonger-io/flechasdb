@@ -6,7 +6,7 @@
 use core::num::NonZeroUsize;
 
 use crate::error::Error;
-use crate::kmeans::{Codebook, Scalar, cluster};
+use crate::kmeans::{ClusterEvent, Codebook, Scalar, cluster_with_events};
 use crate::linalg::{add_in, subtract_in};
 use crate::slice::AsSlice;
 use crate::vector::{BlockVectorSet, VectorSet};
@@ -95,21 +95,36 @@ where
 /// Implementation of partitioning in place.
 pub trait Partitioning<T, VS>
 where
-    VS: VectorSet<T>,
+    Self: Sized,
 {
     /// Partitions the vector set in place.
-    fn partition(self, p: NonZeroUsize) -> Result<Partitions<T, VS>, Error>;
+    fn partition(self, p: NonZeroUsize) -> Result<Partitions<T, VS>, Error> {
+        self.partition_with_events(p, |_| ())
+    }
+
+    /// Partitions the vector set in place.
+    fn partition_with_events<EV>(
+        self,
+        p: NonZeroUsize,
+        event_handler: EV,
+    ) -> Result<Partitions<T, VS>, Error>
+    where
+        EV: FnMut(ClusterEvent<'_, T>) -> ();
 }
 
 impl<T> Partitioning<T, Self> for BlockVectorSet<T>
 where
     T: Scalar,
 {
-    fn partition(
+    fn partition_with_events<EV>(
         mut self,
         p: NonZeroUsize,
-    ) -> Result<Partitions<T, Self>, Error> {
-        let codebook = cluster(&self, p)?;
+        event_handler: EV,
+    ) -> Result<Partitions<T, Self>, Error>
+    where
+        EV: FnMut(ClusterEvent<'_, T>) -> (),
+    {
+        let codebook = cluster_with_events(&self, p, event_handler)?;
         for i in 0..p.get() {
             let centroid = codebook.centroids.get(i);
             for (j, _) in codebook.indices
