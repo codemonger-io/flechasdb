@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["cluster"],"struct":["Codebook"],"trait":["DefaultEpsilon","Scalar"]};
+window.SIDEBAR_ITEMS = {"enum":["ClusterEvent"],"fn":["cluster","cluster_with_events"],"struct":["Codebook"],"trait":["DefaultEpsilon","Scalar"]};

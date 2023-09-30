@@ -567,6 +567,7 @@
 <a href="#567" id="567">567</a>
 <a href="#568" id="568">568</a>
 <a href="#569" id="569">569</a>
+<a href="#570" id="570">570</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Query in a stored database.
 
 </span><span class="kw">use </span>core::borrow::Borrow;
@@ -716,6 +717,7 @@
 }
 
 <span class="doccomment">/// Event notified while querying.
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>QueryEvent {
     <span class="doccomment">/// Starting to load all the partition centroids.
     </span>StartingLoadingPartitionCentroids,

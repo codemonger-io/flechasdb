@@ -574,6 +574,17 @@
 <a href="#574" id="574">574</a>
 <a href="#575" id="575">575</a>
 <a href="#576" id="576">576</a>
+<a href="#577" id="577">577</a>
+<a href="#578" id="578">578</a>
+<a href="#579" id="579">579</a>
+<a href="#580" id="580">580</a>
+<a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Database built on memory.
 
 </span><span class="kw">use </span>core::borrow::Borrow;
@@ -585,7 +596,7 @@
 <span class="kw">use </span>uuid::Uuid;
 
 <span class="kw">use </span><span class="kw">crate</span>::error::Error;
-<span class="kw">use </span><span class="kw">crate</span>::kmeans::{Codebook, Scalar, cluster};
+<span class="kw">use </span><span class="kw">crate</span>::kmeans::{ClusterEvent, Codebook, Scalar, cluster_with_events};
 <span class="kw">use </span><span class="kw">crate</span>::linalg::{dot, subtract_in};
 <span class="kw">use </span><span class="kw">crate</span>::partitions::{Partitioning, Partitions};
 <span class="kw">use </span><span class="kw">crate</span>::slice::AsSlice;
@@ -656,7 +667,7 @@
         <span class="kw-2">mut </span>event: EventHandler,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Database&lt;T, VS&gt;, Error&gt;
     <span class="kw">where
-        </span>EventHandler: FnMut(BuildEvent) -&gt; (),
+        </span>EventHandler: FnMut(BuildEvent&lt;<span class="lifetime">&#39;_</span>, T&gt;) -&gt; (),
     {
         <span class="comment">// assigns IDs to vectors
         </span>event(BuildEvent::StartingIdAssignment);
@@ -667,8 +678,9 @@
         event(BuildEvent::FinishedIdAssignment);
         <span class="comment">// partitions all the data
         </span>event(BuildEvent::StartingPartitioning);
-        <span class="kw">let </span>partitions = <span class="self">self</span>.vs.partition(
+        <span class="kw">let </span>partitions = <span class="self">self</span>.vs.partition_with_events(
             <span class="self">self</span>.num_partitions.try_into().unwrap(),
+            |e| event(BuildEvent::ClusterEvent(e)),
         )<span class="question-mark">?</span>;
         event(BuildEvent::FinishedPartitioning);
         <span class="comment">// divides residual vectors
@@ -684,9 +696,10 @@
         );
         <span class="kw">for </span>(i, subvs) <span class="kw">in </span>divided.iter().enumerate() {
             event(BuildEvent::StartingQuantization(i));
-            codebooks.push(cluster(
+            codebooks.push(cluster_with_events(
                 subvs,
                 <span class="self">self</span>.num_clusters.try_into().unwrap(),
+                |e| event(BuildEvent::ClusterEvent(e)),
             )<span class="question-mark">?</span>);
             event(BuildEvent::FinishedQuantization(i));
         }
@@ -704,7 +717,8 @@
 }
 
 <span class="doccomment">/// Events from [`DatabaseBuilder::build_with_events`].
-</span><span class="kw">pub enum </span>BuildEvent {
+</span><span class="attr">#[derive(Debug)]
+</span><span class="kw">pub enum </span>BuildEvent&lt;<span class="lifetime">&#39;a</span>, T&gt; {
     <span class="doccomment">/// Starting to assign unique IDs to individual vectors.
     </span>StartingIdAssignment,
     <span class="doccomment">/// Finished assigning unique IDs to individual vectors.
@@ -721,6 +735,8 @@
     </span>StartingQuantization(usize),
     <span class="doccomment">/// Finished to quantize subvectors in a specific division.
     </span>FinishedQuantization(usize),
+    <span class="doccomment">/// Event from clustering.
+    </span>ClusterEvent(ClusterEvent&lt;<span class="lifetime">&#39;a</span>, T&gt;),
 }
 
 <span class="doccomment">/// Database.
@@ -750,18 +766,23 @@
 <span class="kw">where
     </span>VS: VectorSet&lt;T&gt;,
 {
+    <span class="doccomment">/// Returns the number of vectors in the database.
+    </span><span class="kw">pub fn </span>num_vectors(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.vector_ids.len()
+    }
+
     <span class="doccomment">/// Returns the vector size.
-    </span><span class="kw">pub fn </span>vector_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+    </span><span class="kw">pub const fn </span>vector_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="self">self</span>.vector_size
     }
 
     <span class="doccomment">/// Returns the number of partitions.
-    </span><span class="kw">pub fn </span>num_partitions(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+    </span><span class="kw">pub const fn </span>num_partitions(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="self">self</span>.num_partitions
     }
 
     <span class="doccomment">/// Returns the number of subvector divisions.
-    </span><span class="kw">pub fn </span>num_divisions(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+    </span><span class="kw">pub const fn </span>num_divisions(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="self">self</span>.num_divisions
     }
 
@@ -771,7 +792,7 @@
     }
 
     <span class="doccomment">/// Returns the number of clusters.
-    </span><span class="kw">pub fn </span>num_clusters(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+    </span><span class="kw">pub const fn </span>num_clusters(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="self">self</span>.num_clusters
     }
 
@@ -1049,6 +1070,7 @@
 }
 
 <span class="doccomment">/// Database query event.
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>QueryEvent {
     <span class="doccomment">/// Starting to select partitions.
     </span>StartingPartitionSelection,
