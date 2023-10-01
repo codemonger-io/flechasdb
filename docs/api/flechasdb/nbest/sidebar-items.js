@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["NBestByKey"],"trait":["TakeNBestByKey"]};

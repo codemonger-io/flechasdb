@@ -838,6 +838,19 @@
 <a href="#838" id="838">838</a>
 <a href="#839" id="839">839</a>
 <a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
+<a href="#852" id="852">852</a>
+<a href="#853" id="853">853</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines a stored database.
 
 </span><span class="kw">use </span>core::borrow::Borrow;
@@ -851,6 +864,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::io::{FileSystem, HashedFileIn};
 <span class="kw">use </span><span class="kw">crate</span>::kmeans::Scalar;
 <span class="kw">use </span><span class="kw">crate</span>::linalg::{dot, subtract};
+<span class="kw">use </span><span class="kw">crate</span>::nbest::{NBestByKey, TakeNBestByKey};
 <span class="kw">use </span><span class="kw">crate</span>::protos::database::{
     AttributesLog <span class="kw">as </span>ProtosAttributesLog,
     Database <span class="kw">as </span>ProtosDatabase,
@@ -1356,24 +1370,32 @@
         event(QueryEvent::FinishedQueryInitialization);
         event(QueryEvent::StartingPartitionSelection);
         <span class="kw">let </span>v = v.as_slice();
-        <span class="kw">let </span>queries = <span class="self">self</span>.query_partitions(v, nprobe)<span class="question-mark">?</span>;
+        <span class="kw">let </span>queries = <span class="self">self</span>.query_partitions(v, k, nprobe)<span class="question-mark">?</span>;
         event(QueryEvent::FinishedPartitionSelection);
-        <span class="kw">let </span><span class="kw-2">mut </span>all_results: Vec&lt;QueryResult&lt;T&gt;&gt; = Vec::new();
-        <span class="kw">for </span>query <span class="kw">in </span>queries.into_iter() {
-            event(QueryEvent::StartingPartitionQuery(
-                query.partition_index,
-            ));
-            <span class="kw">let </span>results = query.execute()<span class="question-mark">?</span>;
-            all_results.extend(results);
-            event(QueryEvent::FinishedPartitionQuery(
-                query.partition_index,
-            ));
-        }
+        <span class="kw">let </span>all_results: Vec&lt;Vec&lt;QueryResult&lt;T&gt;&gt;&gt; = queries
+            .into_iter()
+            .map(|query| {
+                event(QueryEvent::StartingPartitionQuery(
+                    query.partition_index,
+                ));
+                <span class="kw">let </span>results = query.execute();
+                <span class="kw">if </span>results.is_ok() {
+                    event(QueryEvent::FinishedPartitionQuery(
+                        query.partition_index,
+                    ));
+                }
+                results
+            })
+            .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, Error&gt;&gt;()<span class="question-mark">?</span>;
         event(QueryEvent::StartingResultSelection);
+        <span class="kw">let </span><span class="kw-2">mut </span>all_results: Vec&lt;QueryResult&lt;T&gt;&gt; = all_results
+            .into_iter()
+            .flatten()
+            .n_best_by_key(k.get(), |r| r.squared_distance)
+            .into();
         all_results.sort_by(|lhs, rhs| {
             lhs.squared_distance.partial_cmp(<span class="kw-2">&amp;</span>rhs.squared_distance).unwrap()
         });
-        all_results.truncate(k.get());
         event(QueryEvent::FinishedResultSelection);
         <span class="prelude-val">Ok</span>(all_results)
     }
@@ -1384,9 +1406,11 @@
     </span><span class="kw">fn </span>query_partitions&lt;<span class="lifetime">&#39;a</span>&gt;(
         <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>,
         v: <span class="kw-2">&amp;</span>[T],
+        k: NonZeroUsize,
         nprobe: NonZeroUsize,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;PartitionQuery&lt;<span class="lifetime">&#39;a</span>, T, FS&gt;&gt;, Error&gt; {
         <span class="kw">let </span>nprobe = nprobe.get();
+        <span class="kw">let </span>k = k.get();
         <span class="kw">let </span>num_partitions = <span class="self">self</span>.num_partitions();
         <span class="kw">if </span>nprobe &gt; num_partitions {
             <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidArgs(<span class="macro">format!</span>(
@@ -1398,8 +1422,8 @@
         <span class="kw">let </span>partition_centroids = <span class="self">self</span>.partition_centroids.get()
             .expect(<span class="string">&quot;partition centroids must be loaded&quot;</span>);
         <span class="comment">// localizes vectors and calculates distances
-        </span><span class="kw">let </span><span class="kw-2">mut </span>distances: Vec&lt;(usize, Vec&lt;T&gt;, T)&gt; =
-            Vec::with_capacity(num_partitions);
+        </span><span class="kw">let </span><span class="kw-2">mut </span>distances: NBestByKey&lt;(usize, Vec&lt;T&gt;, T), T, <span class="kw">_</span>&gt; =
+            NBestByKey::new(nprobe, |(<span class="kw">_</span>, <span class="kw">_</span>, distance)| <span class="kw-2">*</span>distance);
         <span class="kw">for </span>pi <span class="kw">in </span><span class="number">0</span>..num_partitions {
             <span class="kw">let </span><span class="kw-2">mut </span>localized: Vec&lt;T&gt; = Vec::with_capacity(<span class="self">self</span>.vector_size());
             <span class="kw">unsafe </span>{
@@ -1412,7 +1436,6 @@
         }
         <span class="comment">// chooses `nprobes` shortest distances.
         </span>distances.sort_by(|lhs, rhs| lhs.<span class="number">2</span>.partial_cmp(<span class="kw-2">&amp;</span>rhs.<span class="number">2</span>).unwrap());
-        distances.truncate(nprobe);
         <span class="comment">// makes queries.
         </span><span class="kw">let </span>queries = distances
             .into_iter()
@@ -1424,6 +1447,7 @@
                 ),
                 partition_index: pi,
                 localized,
+                k,
             })
             .collect();
         <span class="prelude-val">Ok</span>(queries)
@@ -1605,7 +1629,8 @@
     codebooks: Ref&lt;<span class="lifetime">&#39;a</span>, Vec&lt;BlockVectorSet&lt;T&gt;&gt;&gt;,
     partition_index: usize,
     localized: Vec&lt;T&gt;, <span class="comment">// query vector - partition centroid
-</span>}
+    </span>k: usize,
+}
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, T, FS&gt; PartitionQuery&lt;<span class="lifetime">&#39;a</span>, T, FS&gt;
 <span class="kw">where
@@ -1640,7 +1665,8 @@
         }
         <span class="comment">// approximates the squared distances to vectors in the partition
         </span><span class="kw">let </span>num_vectors = partition.num_vectors();
-        <span class="kw">let </span><span class="kw-2">mut </span>results: Vec&lt;QueryResult&lt;T&gt;&gt; = Vec::with_capacity(num_vectors);
+        <span class="kw">let </span><span class="kw-2">mut </span>results: NBestByKey&lt;QueryResult&lt;T&gt;, T, <span class="kw">_</span>&gt; =
+            NBestByKey::new(<span class="self">self</span>.k, |i: <span class="kw-2">&amp;</span>QueryResult&lt;T&gt;| i.squared_distance);
         <span class="kw">for </span>vi <span class="kw">in </span><span class="number">0</span>..num_vectors {
             <span class="kw">let </span>encoded_vector = partition.get_encoded_vector(vi).unwrap();
             <span class="kw">let </span><span class="kw-2">mut </span>distance = T::zero();
@@ -1659,7 +1685,7 @@
                     <span class="self">self</span>.database.attributes_log_ids[<span class="self">self</span>.partition_index].clone(),
             });
         }
-        <span class="prelude-val">Ok</span>(results)
+        <span class="prelude-val">Ok</span>(results.into())
     }
 }
 

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["asyncdb","db","distribution","error","io","kmeans","linalg","numbers","partitions","protos","slice","vector"]};
+window.SIDEBAR_ITEMS = {"mod":["asyncdb","db","distribution","error","io","kmeans","linalg","nbest","numbers","partitions","protos","slice","vector"]};
