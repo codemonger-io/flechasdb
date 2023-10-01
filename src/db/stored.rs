@@ -306,160 +306,10 @@ where
 type PartitionRef<'a, T> = Ref<'a, Partition<T>>;
 
 /// Reference type of an attribute value.
+///
+/// You should drop this as soon as possible to avoid panics by multiple
+/// borrowing.
 pub type AttributeValueRef<'a> = Ref<'a, AttributeValue>;
-
-impl<FS> LoadPartition<f32> for Database<f32, FS>
-where
-    FS: FileSystem,
-{
-    /// Loads a partition.
-    ///
-    /// Loads a Protocol Buffers message (`p`) from the file system.
-    ///
-    /// Fails if:
-    /// - `index` exceeds the number of partitions.
-    /// - `self.vector_size` and `p.vector_size` do not match
-    /// - `self.num_divisions` and `p.num_divisions` do not match
-    /// - `p.num_vectors` and `p.encoded_vectors.len()` do not match
-    /// - `p.num_vectors` and `p.vector_ids.len()` do not match
-    /// - `p.num_divisions` and encoded vector length do not match
-    fn load_partition(
-        &self,
-        index: usize,
-    ) -> Result<Partition<f32>, Error> {
-        if index >= self.num_partitions {
-            return Err(Error::InvalidArgs(format!(
-                "index {} exceeds the number of partitions {}",
-                index,
-                self.num_partitions,
-            )));
-        }
-        let mut f = self.fs.open_hashed_file(format!(
-            "partitions/{}.{}",
-            self.get_partition_id(index).unwrap(),
-            PROTOBUF_EXTENSION,
-        ))?;
-        let partition: ProtosPartition = read_message(&mut f)?;
-        f.verify()?;
-        let vector_size = partition.vector_size as usize;
-        let num_divisions = partition.num_divisions as usize;
-        let encoded_vectors: BlockVectorSet<u32> = partition.encoded_vectors
-                .into_option()
-                .ok_or(Error::InvalidData(
-                    "missing encoded vectors".to_string(),
-                ))?
-                .deserialize()?;
-        if vector_size != self.vector_size() {
-            return Err(Error::InvalidData(format!(
-                "vector_size {} and partition.vector_size {} do not match",
-                self.vector_size(),
-                vector_size,
-            )));
-        }
-        if num_divisions != self.num_divisions() {
-            return Err(Error::InvalidData(format!(
-                "num_divisions {} and partition.num_divisions {} do not match",
-                self.num_divisions(),
-                num_divisions,
-            )));
-        }
-        if encoded_vectors.len() != partition.vector_ids.len() {
-            return Err(Error::InvalidData(format!(
-                "number of vector IDs is inconsistent: exptected {} but got {}",
-                encoded_vectors.len(),
-                partition.vector_ids.len(),
-            )));
-        }
-        let vector_ids: Vec<Uuid> = partition.vector_ids
-            .into_iter()
-            .map(|id| id.deserialize().unwrap())
-            .collect();
-        Ok(Partition {
-            _t: std::marker::PhantomData,
-            encoded_vectors,
-            vector_ids,
-        })
-    }
-}
-
-impl<FS> LoadCodebook<f32> for Database<f32, FS>
-where
-    FS: FileSystem,
-{
-    /// Loads a codebook.
-    ///
-    /// Fails if:
-    /// - `index` exceeds the number of codebooks.
-    /// - codebook file cannot be loaded.
-    /// - vector size does not match the subvector size of the database.
-    /// - number of vectors does not match that of the database.
-    fn load_codebook(&self, index: usize) -> Result<BlockVectorSet<f32>, Error>
-    where
-        FS: FileSystem,
-    {
-        if index >= self.num_divisions() {
-            return Err(Error::InvalidArgs(format!(
-                "index {} exceeds the number of codebooks {}",
-                index,
-                self.num_divisions(),
-            )));
-        }
-        let mut f = self.fs.open_hashed_file(format!(
-            "codebooks/{}.{}",
-            self.get_codebook_id(index).unwrap(),
-            PROTOBUF_EXTENSION,
-        ))?;
-        let codebook: ProtosVectorSet = read_message(&mut f)?;
-        f.verify()?;
-        let codebook: BlockVectorSet<f32> = codebook.deserialize()?;
-        if codebook.vector_size() != self.subvector_size() {
-            return Err(Error::InvalidData(format!(
-                "vector_size is inconsistent: expected {} but got {}",
-                self.subvector_size(),
-                codebook.vector_size(),
-            )));
-        }
-        if codebook.len() != self.num_codes() {
-            return Err(Error::InvalidData(format!(
-                "number of codes is inconsistent: expected {} but got {}",
-                self.num_codes(),
-                codebook.len(),
-            )));
-        }
-        Ok(codebook)
-    }
-}
-
-impl<FS> LoadPartitionCentroids<f32> for Database<f32, FS>
-where
-    FS: FileSystem,
-{
-    fn load_partition_centroids(&self) -> Result<BlockVectorSet<f32>, Error> {
-        let mut f = self.fs.open_hashed_file(format!(
-            "partitions/{}.{}",
-            self.partition_centroids_id,
-            PROTOBUF_EXTENSION,
-        ))?;
-        let partition_centroids: ProtosVectorSet = read_message(&mut f)?;
-        let partition_centroids: BlockVectorSet<f32> =
-            partition_centroids.deserialize()?;
-        if partition_centroids.vector_size() != self.vector_size() {
-            return Err(Error::InvalidData(format!(
-                "partition centroids vector size mismatch: expected {}, got {}",
-                self.vector_size(),
-                partition_centroids.vector_size(),
-            )));
-        }
-        if partition_centroids.len() != self.num_partitions() {
-            return Err(Error::InvalidData(format!(
-                "partition centroids data length mismatch: expected {}, got {}",
-                self.num_partitions(),
-                partition_centroids.len(),
-            )));
-        }
-        Ok(partition_centroids)
-    }
-}
 
 impl<T, FS> Database<T, FS>
 where
@@ -598,86 +448,6 @@ where
             })
             .collect();
         Ok(queries)
-    }
-}
-
-impl<FS> LoadDatabase<f32, FS> for Database<f32, FS>
-where
-    FS: FileSystem,
-{
-    /// Loads a database.
-    ///
-    /// Fails if:
-    /// - `vector_size` is zero
-    /// - `num_divisions` is zero
-    /// - `num_partitions` is zero
-    /// - `num_codes` is zero
-    /// - `vector_size` is not a multiple of `num_divisions`
-    /// - `num_partitions` and `partitions_refs.len()` do not match
-    /// - `vector_size` and centroid size do not match
-    /// - `num_divisions` and `codebook_refs.len()` do not match
-    fn load_database<P>(fs: FS, path: P) -> Result<Database<f32, FS>, Error>
-    where
-        P: AsRef<str>,
-    {
-        let mut f = fs.open_hashed_file(path)?;
-        let db: ProtosDatabase = read_message(&mut f)?;
-        f.verify()?;
-        let vector_size = db.vector_size as usize;
-        let num_partitions = db.num_partitions as usize;
-        let num_divisions = db.num_divisions as usize;
-        let num_codes = db.num_codes as usize;
-        if vector_size == 0 {
-            return Err(Error::InvalidData(format!("vector_size is zero")));
-        }
-        if num_divisions == 0 {
-            return Err(Error::InvalidData(format!("num_divisions is zero")));
-        }
-        if num_partitions == 0 {
-            return Err(Error::InvalidData(format!("num_partitions is zero")));
-        }
-        if num_codes == 0 {
-            return Err(Error::InvalidData(format!("num_codes is zero")));
-        }
-        if vector_size % num_divisions != 0 {
-            return Err(Error::InvalidData(format!(
-                "vector_size {} is not multiple of num_divisions {}",
-                vector_size,
-                num_divisions,
-            )));
-        }
-        if num_partitions != db.partition_ids.len() {
-            return Err(Error::InvalidData(format!(
-                "num_partitions {} and partition_ids.len() {} do not match",
-                db.num_partitions,
-                db.partition_ids.len(),
-            )));
-        }
-        if num_divisions != db.codebook_ids.len() {
-            return Err(Error::InvalidData(format!(
-                "num_divisions {} and codebook_ids.len() {} do not match",
-                db.num_divisions,
-                db.codebook_ids.len(),
-            )));
-        }
-        let db = Database {
-            fs,
-            vector_size,
-            num_partitions,
-            num_divisions,
-            num_codes,
-            partition_ids: db.partition_ids,
-            partitions: RefCell::new(vec![None; num_partitions]),
-            partition_centroids_id: db.partition_centroids_id,
-            partition_centroids: OnceCell::new(),
-            codebook_ids: db.codebook_ids,
-            codebooks: RefCell::new(None),
-            attributes_log_ids: db.attributes_log_ids,
-            attributes_log_load_flags:
-                RefCell::new(vec![false; num_partitions]),
-            attribute_table: RefCell::new(None),
-        };
-        Ok(db)
     }
 }
 
@@ -850,4 +620,246 @@ pub struct QueryResult<T> {
     // for verification
     partition_id: String,
     attributes_log_id: String,
+}
+
+mod f32impl {
+    use super::*;
+
+    impl<FS> LoadDatabase<f32, FS> for Database<f32, FS>
+    where
+        FS: FileSystem,
+    {
+        /// Loads a database.
+        ///
+        /// Fails if:
+        /// - `vector_size` is zero
+        /// - `num_divisions` is zero
+        /// - `num_partitions` is zero
+        /// - `num_codes` is zero
+        /// - `vector_size` is not a multiple of `num_divisions`
+        /// - `num_partitions` and `partitions_refs.len()` do not match
+        /// - `vector_size` and centroid size do not match
+        /// - `num_divisions` and `codebook_refs.len()` do not match
+        fn load_database<P>(fs: FS, path: P) -> Result<Database<f32, FS>, Error>
+        where
+            P: AsRef<str>,
+        {
+            let mut f = fs.open_hashed_file(path)?;
+            let db: ProtosDatabase = read_message(&mut f)?;
+            f.verify()?;
+            let vector_size = db.vector_size as usize;
+            let num_partitions = db.num_partitions as usize;
+            let num_divisions = db.num_divisions as usize;
+            let num_codes = db.num_codes as usize;
+            if vector_size == 0 {
+                return Err(Error::InvalidData(format!("vector_size is zero")));
+            }
+            if num_divisions == 0 {
+                return Err(Error::InvalidData(format!("num_divisions is zero")));
+            }
+            if num_partitions == 0 {
+                return Err(Error::InvalidData(format!("num_partitions is zero")));
+            }
+            if num_codes == 0 {
+                return Err(Error::InvalidData(format!("num_codes is zero")));
+            }
+            if vector_size % num_divisions != 0 {
+                return Err(Error::InvalidData(format!(
+                    "vector_size {} is not multiple of num_divisions {}",
+                    vector_size,
+                    num_divisions,
+                )));
+            }
+            if num_partitions != db.partition_ids.len() {
+                return Err(Error::InvalidData(format!(
+                    "num_partitions {} and partition_ids.len() {} do not match",
+                    db.num_partitions,
+                    db.partition_ids.len(),
+                )));
+            }
+            if num_divisions != db.codebook_ids.len() {
+                return Err(Error::InvalidData(format!(
+                    "num_divisions {} and codebook_ids.len() {} do not match",
+                    db.num_divisions,
+                    db.codebook_ids.len(),
+                )));
+            }
+            let db = Database {
+                fs,
+                vector_size,
+                num_partitions,
+                num_divisions,
+                num_codes,
+                partition_ids: db.partition_ids,
+                partitions: RefCell::new(vec![None; num_partitions]),
+                partition_centroids_id: db.partition_centroids_id,
+                partition_centroids: OnceCell::new(),
+                codebook_ids: db.codebook_ids,
+                codebooks: RefCell::new(None),
+                attributes_log_ids: db.attributes_log_ids,
+                attributes_log_load_flags:
+                    RefCell::new(vec![false; num_partitions]),
+                attribute_table: RefCell::new(None),
+            };
+            Ok(db)
+        }
+    }
+
+    impl<FS> LoadPartitionCentroids<f32> for Database<f32, FS>
+    where
+        FS: FileSystem,
+    {
+        fn load_partition_centroids(
+            &self,
+        ) -> Result<BlockVectorSet<f32>, Error> {
+            let mut f = self.fs.open_hashed_file(format!(
+                "partitions/{}.{}",
+                self.partition_centroids_id,
+                PROTOBUF_EXTENSION,
+            ))?;
+            let partition_centroids: ProtosVectorSet = read_message(&mut f)?;
+            let partition_centroids: BlockVectorSet<f32> =
+                partition_centroids.deserialize()?;
+            if partition_centroids.vector_size() != self.vector_size() {
+                return Err(Error::InvalidData(format!(
+                    "partition centroids vector size mismatch: expected {}, got {}",
+                    self.vector_size(),
+                    partition_centroids.vector_size(),
+                )));
+            }
+            if partition_centroids.len() != self.num_partitions() {
+                return Err(Error::InvalidData(format!(
+                    "partition centroids data length mismatch: expected {}, got {}",
+                    self.num_partitions(),
+                    partition_centroids.len(),
+                )));
+            }
+            Ok(partition_centroids)
+        }
+    }
+
+    impl<FS> LoadCodebook<f32> for Database<f32, FS>
+    where
+        FS: FileSystem,
+    {
+        /// Loads a codebook.
+        ///
+        /// Fails if:
+        /// - `index` exceeds the number of codebooks.
+        /// - codebook file cannot be loaded.
+        /// - vector size does not match the subvector size of the database.
+        /// - number of vectors does not match that of the database.
+        fn load_codebook(
+            &self,
+            index: usize,
+        ) -> Result<BlockVectorSet<f32>, Error>
+        where
+            FS: FileSystem,
+        {
+            if index >= self.num_divisions() {
+                return Err(Error::InvalidArgs(format!(
+                    "index {} exceeds the number of codebooks {}",
+                    index,
+                    self.num_divisions(),
+                )));
+            }
+            let mut f = self.fs.open_hashed_file(format!(
+                "codebooks/{}.{}",
+                self.get_codebook_id(index).unwrap(),
+                PROTOBUF_EXTENSION,
+            ))?;
+            let codebook: ProtosVectorSet = read_message(&mut f)?;
+            f.verify()?;
+            let codebook: BlockVectorSet<f32> = codebook.deserialize()?;
+            if codebook.vector_size() != self.subvector_size() {
+                return Err(Error::InvalidData(format!(
+                    "vector_size is inconsistent: expected {} but got {}",
+                    self.subvector_size(),
+                    codebook.vector_size(),
+                )));
+            }
+            if codebook.len() != self.num_codes() {
+                return Err(Error::InvalidData(format!(
+                    "number of codes is inconsistent: expected {} but got {}",
+                    self.num_codes(),
+                    codebook.len(),
+                )));
+            }
+            Ok(codebook)
+        }
+    }
+
+    impl<FS> LoadPartition<f32> for Database<f32, FS>
+    where
+        FS: FileSystem,
+    {
+        /// Loads a partition.
+        ///
+        /// Loads a Protocol Buffers message (`p`) from the file system.
+        ///
+        /// Fails if:
+        /// - `index` exceeds the number of partitions.
+        /// - `self.vector_size` and `p.vector_size` do not match
+        /// - `self.num_divisions` and `p.num_divisions` do not match
+        /// - `p.num_vectors` and `p.encoded_vectors.len()` do not match
+        /// - `p.num_vectors` and `p.vector_ids.len()` do not match
+        /// - `p.num_divisions` and encoded vector length do not match
+        fn load_partition(
+            &self,
+            index: usize,
+        ) -> Result<Partition<f32>, Error> {
+            if index >= self.num_partitions {
+                return Err(Error::InvalidArgs(format!(
+                    "index {} exceeds the number of partitions {}",
+                    index,
+                    self.num_partitions,
+                )));
+            }
+            let mut f = self.fs.open_hashed_file(format!(
+                "partitions/{}.{}",
+                self.get_partition_id(index).unwrap(),
+                PROTOBUF_EXTENSION,
+            ))?;
+            let partition: ProtosPartition = read_message(&mut f)?;
+            f.verify()?;
+            let vector_size = partition.vector_size as usize;
+            let num_divisions = partition.num_divisions as usize;
+            let encoded_vectors: BlockVectorSet<u32> = partition.encoded_vectors
+                .into_option()
+                .ok_or(Error::InvalidData(
+                    "missing encoded vectors".to_string(),
+                ))?
+                .deserialize()?;
+            if vector_size != self.vector_size() {
+                return Err(Error::InvalidData(format!(
+                    "vector_size {} and partition.vector_size {} do not match",
+                    self.vector_size(),
+                    vector_size,
+                )));
+            }
+            if num_divisions != self.num_divisions() {
+                return Err(Error::InvalidData(format!(
+                    "num_divisions {} and partition.num_divisions {} do not match",
+                    self.num_divisions(),
+                    num_divisions,
+                )));
+            }
+            if encoded_vectors.len() != partition.vector_ids.len() {
+                return Err(Error::InvalidData(format!(
+                    "number of vector IDs is inconsistent: exptected {} but got {}",
+                    encoded_vectors.len(),
+                    partition.vector_ids.len(),
+                )));
+            }
+            let vector_ids: Vec<Uuid> = partition.vector_ids
+                .into_iter()
+                .map(|id| id.deserialize().unwrap())
+                .collect();
+            Ok(Partition {
+                _t: std::marker::PhantomData,
+                encoded_vectors,
+                vector_ids,
+            })
+        }
+    }
 }
