@@ -16,9 +16,9 @@ The creed of the FlechasDB system is simple; it requires **no dedicated server c
         - [x] String
         - [x] Number
 - [ ] Save a vector database to storage
-    - [ ] Sync
+    - [x] Sync
         - [x] Local file system
-        - [ ] [Amazon S3](https://aws.amazon.com/s3/)
+        - [x] [Amazon S3](https://aws.amazon.com/s3/) (\*)
     - [ ] Async
         - [ ] Local file system
         - [ ] [Amazon S3](https://aws.amazon.com/s3/)
@@ -27,10 +27,10 @@ The creed of the FlechasDB system is simple; it requires **no dedicated server c
 - [x] Load a vector database from storage
     - [x] Sync
         - [x] Local file system
-        - [x] [Amazon S3](https://aws.amazon.com/s3/) (\*1)
+        - [x] [Amazon S3](https://aws.amazon.com/s3/) (\*)
     - [x] Async
         - [x] Local file system
-        - [x] [Amazon S3](https://aws.amazon.com/s3/) (\*1)
+        - [x] [Amazon S3](https://aws.amazon.com/s3/) (\*)
     - [x] f32
     - [ ] f64
 - [x] Query vector
@@ -45,7 +45,7 @@ The creed of the FlechasDB system is simple; it requires **no dedicated server c
 - [ ] Update database
 - [ ] Flat database
 
-\*1: provided by another package [`flechasdb-s3`](https://github.com/codemonger-io/flechasdb-s3).
+\*: provided by another package [`flechasdb-s3`](https://github.com/codemonger-io/flechasdb-s3).
 
 ## Installing flechasdb
 
