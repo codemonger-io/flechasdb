@@ -12,6 +12,7 @@ use uuid::Uuid;
 use crate::error::Error;
 use crate::kmeans::Scalar;
 use crate::linalg::{dot, subtract};
+use crate::nbest::TakeNBestByKey;
 use crate::slice::AsSlice;
 use crate::vector::BlockVectorSet;
 
@@ -550,21 +551,13 @@ where
     T: PartialOrd,
 {
     assert!(k > 0);
-    type PQR<T> = PartitionQueryResult<T>;
-    let compare = |l: &&PQR<T>, r: &&PQR<T>| {
-        l.squared_distance.partial_cmp(&r.squared_distance).unwrap()
-    };
     let mut results: Vec<_> = queries
         .iter()
-        .flat_map(|q| {
-            let mut subresults: Vec<_> =
-                q.results.as_ref().unwrap().iter().collect();
-            subresults.sort_by(compare);
-            subresults.truncate(k);
-            subresults.into_iter()
-        })
-        .collect();
-    results.sort_by(compare);
-    results.truncate(k);
+        .flat_map(|q| q.results.as_ref().unwrap().iter())
+        .n_best_by_key(k, |r| &r.squared_distance)
+        .into();
+    results.sort_by(
+        |l, r| l.squared_distance.partial_cmp(&r.squared_distance).unwrap(),
+    );
     results
 }

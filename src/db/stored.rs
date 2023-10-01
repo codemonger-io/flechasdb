@@ -11,6 +11,7 @@ use crate::error::Error;
 use crate::io::{FileSystem, HashedFileIn};
 use crate::kmeans::Scalar;
 use crate::linalg::{dot, subtract};
+use crate::nbest::{NBestByKey, TakeNBestByKey};
 use crate::protos::database::{
     AttributesLog as ProtosAttributesLog,
     Database as ProtosDatabase,
@@ -516,24 +517,32 @@ where
         event(QueryEvent::FinishedQueryInitialization);
         event(QueryEvent::StartingPartitionSelection);
         let v = v.as_slice();
-        let queries = self.query_partitions(v, nprobe)?;
+        let queries = self.query_partitions(v, k, nprobe)?;
         event(QueryEvent::FinishedPartitionSelection);
-        let mut all_results: Vec<QueryResult<T>> = Vec::new();
-        for query in queries.into_iter() {
-            event(QueryEvent::StartingPartitionQuery(
-                query.partition_index,
-            ));
-            let results = query.execute()?;
-            all_results.extend(results);
-            event(QueryEvent::FinishedPartitionQuery(
-                query.partition_index,
-            ));
-        }
+        let all_results: Vec<Vec<QueryResult<T>>> = queries
+            .into_iter()
+            .map(|query| {
+                event(QueryEvent::StartingPartitionQuery(
+                    query.partition_index,
+                ));
+                let results = query.execute();
+                if results.is_ok() {
+                    event(QueryEvent::FinishedPartitionQuery(
+                        query.partition_index,
+                    ));
+                }
+                results
+            })
+            .collect::<Result<Vec<_>, Error>>()?;
         event(QueryEvent::StartingResultSelection);
+        let mut all_results: Vec<QueryResult<T>> = all_results
+            .into_iter()
+            .flatten()
+            .n_best_by_key(k.get(), |r| r.squared_distance)
+            .into();
         all_results.sort_by(|lhs, rhs| {
             lhs.squared_distance.partial_cmp(&rhs.squared_distance).unwrap()
         });
-        all_results.truncate(k.get());
         event(QueryEvent::FinishedResultSelection);
         Ok(all_results)
     }
@@ -544,9 +553,11 @@ where
     fn query_partitions<'a>(
         &'a self,
         v: &[T],
+        k: NonZeroUsize,
         nprobe: NonZeroUsize,
     ) -> Result<Vec<PartitionQuery<'a, T, FS>>, Error> {
         let nprobe = nprobe.get();
+        let k = k.get();
         let num_partitions = self.num_partitions();
         if nprobe > num_partitions {
             return Err(Error::InvalidArgs(format!(
@@ -558,8 +569,8 @@ where
         let partition_centroids = self.partition_centroids.get()
             .expect("partition centroids must be loaded");
         // localizes vectors and calculates distances
-        let mut distances: Vec<(usize, Vec<T>, T)> =
-            Vec::with_capacity(num_partitions);
+        let mut distances: NBestByKey<(usize, Vec<T>, T), T, _> =
+            NBestByKey::new(nprobe, |(_, _, distance)| *distance);
         for pi in 0..num_partitions {
             let mut localized: Vec<T> = Vec::with_capacity(self.vector_size());
             unsafe {
@@ -572,7 +583,6 @@ where
         }
         // chooses `nprobes` shortest distances.
         distances.sort_by(|lhs, rhs| lhs.2.partial_cmp(&rhs.2).unwrap());
-        distances.truncate(nprobe);
         // makes queries.
         let queries = distances
             .into_iter()
@@ -584,6 +594,7 @@ where
                 ),
                 partition_index: pi,
                 localized,
+                k,
             })
             .collect();
         Ok(queries)
@@ -765,6 +776,7 @@ struct PartitionQuery<'a, T, FS> {
     codebooks: Ref<'a, Vec<BlockVectorSet<T>>>,
     partition_index: usize,
     localized: Vec<T>, // query vector - partition centroid
+    k: usize,
 }
 
 impl<'a, T, FS> PartitionQuery<'a, T, FS>
@@ -800,7 +812,8 @@ where
         }
         // approximates the squared distances to vectors in the partition
         let num_vectors = partition.num_vectors();
-        let mut results: Vec<QueryResult<T>> = Vec::with_capacity(num_vectors);
+        let mut results: NBestByKey<QueryResult<T>, T, _> =
+            NBestByKey::new(self.k, |i: &QueryResult<T>| i.squared_distance);
         for vi in 0..num_vectors {
             let encoded_vector = partition.get_encoded_vector(vi).unwrap();
             let mut distance = T::zero();
@@ -819,7 +832,7 @@ where
                     self.database.attributes_log_ids[self.partition_index].clone(),
             });
         }
-        Ok(results)
+        Ok(results.into())
     }
 }
 
