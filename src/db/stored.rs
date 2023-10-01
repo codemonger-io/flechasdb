@@ -109,14 +109,14 @@ where
     /// The first call to this function will take longer because it loads all
     /// the attributes.
     /// If you want to get attributes of your query results, please use
-    /// `get_attribute_of` instead.
+    /// [`QueryResult::get_attribute`] instead.
     ///
     /// `None` if the vector exists but no value is associated with `key`.
     ///
-    /// Fails if no vector is associated with `id`.
+    /// Fails if no vector is associated with `vector_id`.
     pub fn get_attribute<K>(
         &self,
-        id: &Uuid,
+        vector_id: &Uuid,
         key: &K,
     ) -> Result<Option<AttributeValueRef>, Error>
     where
@@ -126,47 +126,27 @@ where
         if self.attribute_table.borrow().is_none() {
             self.load_attribute_table()?;
         }
-        self.get_attribute_no_loading(id, key)
+        self.get_attribute_internal(vector_id, key)
     }
 
-    /// Returns an attribute value of a given vector.
-    ///
-    /// This function will be more efficient if you have a query result.
-    ///
-    /// `None` if no value is associated with `key`.
-    ///
-    /// Fails if a query result is not from this database.
-    pub fn get_attribute_of<K>(
+    // Returns an attribute value of a given vector in a specific partition.
+    fn get_attribute_in_partition<K>(
         &self,
-        query_result: &QueryResult<T>,
+        partition_index: usize,
+        vector_id: &Uuid,
         key: &K,
     ) -> Result<Option<AttributeValueRef>, Error>
     where
         String: Borrow<K>,
         K: Hash + Eq + ?Sized,
     {
-        let partition_index = query_result.partition_index;
-        if self.partition_ids[partition_index] != query_result.partition_id {
-            return Err(Error::InvalidArgs(format!(
-                "incompatible patition: expected {} but got {}",
-                self.partition_ids[partition_index],
-                query_result.partition_id,
-            )));
-        }
-        if self.attributes_log_ids[partition_index] != query_result.attributes_log_id {
-            return Err(Error::InvalidArgs(format!(
-                "incompatible attributes log: expected {} but got {}",
-                self.attributes_log_ids[partition_index],
-                query_result.attributes_log_id,
-            )));
-        }
         self.load_attributes_log(partition_index)?;
-        self.get_attribute_no_loading(&query_result.vector_id, key)
+        self.get_attribute_internal(vector_id, key)
     }
 
-    fn get_attribute_no_loading<K>(
+    fn get_attribute_internal<K>(
         &self,
-        id: &Uuid,
+        vector_id: &Uuid,
         key: &K,
     ) -> Result<Option<AttributeValueRef>, Error>
     where
@@ -179,8 +159,10 @@ where
         ).expect("attribute table must be loaded");
         let attributes = Ref::filter_map(
             attribute_table,
-            |tbl| tbl.get(id),
-        ).or(Err(Error::InvalidArgs(format!("no such vector ID: {}", id))))?;
+            |tbl| tbl.get(vector_id),
+        ).or(Err(Error::InvalidArgs(
+            format!("no such vector ID: {}", vector_id),
+        )))?;
         match Ref::filter_map(attributes, |attrs| attrs.get(key)) {
             Ok(value) => Ok(Some(value)),
             Err(_) => Ok(None),
@@ -321,12 +303,12 @@ where
     ///
     /// The first call to this function will take longer because it lazily
     /// loads partition centroids, and codebooks.
-    pub fn query<V>(
-        &self,
+    pub fn query<'a, V>(
+        &'a self,
         v: &V,
         k: NonZeroUsize,
         nprobe: NonZeroUsize,
-    ) -> Result<Vec<QueryResult<T>>, Error>
+    ) -> Result<Vec<QueryResult<'a, T, FS>>, Error>
     where
         V: AsSlice<T> + ?Sized,
     {
@@ -337,13 +319,13 @@ where
     ///
     /// The first call to this function will take longer because it lazily
     /// loads partition centroids, and codebooks.
-    pub fn query_with_events<V, EventHandler>(
-        &self,
+    pub fn query_with_events<'a, V, EventHandler>(
+        &'a self,
         v: &V,
         k: NonZeroUsize,
         nprobe: NonZeroUsize,
         mut event: EventHandler,
-    ) -> Result<Vec<QueryResult<T>>, Error>
+    ) -> Result<Vec<QueryResult<'a, T, FS>>, Error>
     where
         V: AsSlice<T> + ?Sized,
         EventHandler: FnMut(QueryEvent) -> (),
@@ -369,7 +351,7 @@ where
         let v = v.as_slice();
         let queries = self.query_partitions(v, k, nprobe)?;
         event(QueryEvent::FinishedPartitionSelection);
-        let all_results: Vec<Vec<QueryResult<T>>> = queries
+        let all_results: Vec<Vec<QueryResult<'a, T, FS>>> = queries
             .into_iter()
             .map(|query| {
                 event(QueryEvent::StartingPartitionQuery(
@@ -385,7 +367,7 @@ where
             })
             .collect::<Result<Vec<_>, Error>>()?;
         event(QueryEvent::StartingResultSelection);
-        let mut all_results: Vec<QueryResult<T>> = all_results
+        let mut all_results: Vec<QueryResult<'a, T, FS>> = all_results
             .into_iter()
             .flatten()
             .n_best_by_key(k.get(), |r| r.squared_distance)
@@ -437,7 +419,7 @@ where
         let queries = distances
             .into_iter()
             .map(|(pi, localized, _)| PartitionQuery {
-                database: self,
+                db: self,
                 codebooks: Ref::map(
                     self.codebooks.borrow(),
                     |cb| cb.as_ref().unwrap(),
@@ -542,7 +524,7 @@ pub enum QueryEvent {
 
 /// Query in a specific partition.
 struct PartitionQuery<'a, T, FS> {
-    database: &'a Database<T, FS>,
+    db: &'a Database<T, FS>,
     codebooks: Ref<'a, Vec<BlockVectorSet<T>>>,
     partition_index: usize,
     localized: Vec<T>, // query vector - partition centroid
@@ -555,12 +537,12 @@ where
     FS: FileSystem,
     Database<T, FS>: LoadPartition<T> + LoadCodebook<T>,
 {
-    fn execute(&self) -> Result<Vec<QueryResult<T>>, Error> {
-        let num_divisions = self.database.num_divisions();
-        let num_codes = self.database.num_codes();
-        let subvector_size = self.database.subvector_size();
+    fn execute(&self) -> Result<Vec<QueryResult<'a, T, FS>>, Error> {
+        let num_divisions = self.db.num_divisions();
+        let num_codes = self.db.num_codes();
+        let subvector_size = self.db.subvector_size();
         // loads the partition
-        let partition = self.database.get_partition(self.partition_index)?;
+        let partition = self.db.get_partition(self.partition_index)?;
         // calculates the distance table
         let mut distance_table: Vec<T> =
             Vec::with_capacity(num_divisions * num_codes);
@@ -582,8 +564,11 @@ where
         }
         // approximates the squared distances to vectors in the partition
         let num_vectors = partition.num_vectors();
-        let mut results: NBestByKey<QueryResult<T>, T, _> =
-            NBestByKey::new(self.k, |i: &QueryResult<T>| i.squared_distance);
+        let mut results: NBestByKey<QueryResult<'a, T, FS>, T, _> =
+            NBestByKey::new(
+                self.k,
+                |i: &QueryResult<'a, T, FS>| i.squared_distance,
+            );
         for vi in 0..num_vectors {
             let encoded_vector = partition.get_encoded_vector(vi).unwrap();
             let mut distance = T::zero();
@@ -592,14 +577,11 @@ where
                 distance += distance_table[di * num_codes + ci];
             }
             results.push(QueryResult {
+                db: self.db,
                 partition_index: self.partition_index,
                 vector_id: partition.get_vector_id(vi).unwrap().clone(),
                 vector_index: vi,
                 squared_distance: distance,
-                partition_id:
-                    self.database.partition_ids[self.partition_index].clone(),
-                attributes_log_id:
-                    self.database.attributes_log_ids[self.partition_index].clone(),
             });
         }
         Ok(results.into())
@@ -607,8 +589,9 @@ where
 }
 
 /// Query result.
-#[derive(Clone, Debug)]
-pub struct QueryResult<T> {
+#[derive(Clone)]
+pub struct QueryResult<'a, T, FS> {
+    db: &'a Database<T, FS>,
     /// Partition index.
     pub partition_index: usize,
     /// Vector ID. Must be unique across the entire database.
@@ -617,9 +600,33 @@ pub struct QueryResult<T> {
     pub vector_index: usize,
     /// Approximate squared distance.
     pub squared_distance: T,
-    // for verification
-    partition_id: String,
-    attributes_log_id: String,
+}
+
+impl<'a, T, FS> QueryResult<'a, T, FS>
+where
+    T: Scalar,
+    FS: FileSystem,
+    Database<T, FS>:
+        LoadPartition<T> + LoadCodebook<T> + LoadPartitionCentroids<T>,
+{
+    /// Returns an attribute value of the vector corresponding to the result.
+    ///
+    /// The first call of this function on a result belonging to a partition
+    /// will take longer because it will load the attributes of the partition.
+    pub fn get_attribute<K>(
+        &self,
+        key: &K,
+    ) -> Result<Option<AttributeValueRef>, Error>
+    where
+        String: Borrow<K>,
+        K: Hash + Eq + ?Sized,
+    {
+        self.db.get_attribute_in_partition(
+            self.partition_index,
+            &self.vector_id,
+            key,
+        )
+    }
 }
 
 mod f32impl {
