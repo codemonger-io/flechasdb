@@ -12,9 +12,9 @@ The creed of the FlechasDB system is simple; it requires **no dedicated server c
 ### Core features and progress
 
 - [x] Build a vector database from a set of vectors
-    - [ ] Attach attributes to individual vectors
+    - [x] Attach attributes to individual vectors
         - [x] String
-        - [ ] Number
+        - [x] Number
 - [ ] Save a vector database to storage
     - [ ] Sync
         - [x] Local file system
@@ -35,13 +35,13 @@ The creed of the FlechasDB system is simple; it requires **no dedicated server c
     - [ ] f64
 - [x] Query vector
     - [x] Sync
-        - [ ] Get attributes attached to individual vectors
+        - [x] Get attributes attached to individual vectors
             - [x] String
-            - [ ] Number
+            - [x] Number
     - [x] Async
-        - [ ] Get attributes attached to individual vectors
+        - [x] Get attributes attached to individual vectors
             - [x] String
-            - [ ] Number
+            - [x] Number
 - [ ] Update database
 - [ ] Flat database
 
@@ -105,7 +105,7 @@ fn main() {
 
 You can find the complete example in [`examples/build-random`](./examples/build-random/) folder.
 
-FYI: It took a while on my machine (Apple M1 Pro, 32GB RAM).
+FYI: It took a while on my machine (Apple M1 Pro, 32GB RAM, 1TB SSD).
 ```
 prepared data in 0.9123601 s
 built database in 906.51526 s
@@ -170,7 +170,7 @@ fn main() {
 
 You can find the complete example in [`examples/query-sync`](./examples/query-sync) folder.
 
-FYI: outputs on my machine (Apple M1 Pro, 32GB RAM):
+FYI: outputs on my machine (Apple M1 Pro, 32GB RAM, 1TB SSD):
 ```
 loaded database in 0.000142083 s
 [0] queried k-NN in 0.0078015 s
@@ -258,7 +258,7 @@ async fn main() {
 
 The complete example is in [`examples/query-async`](./examples/query-async) folder.
 
-FYI: outputs on my machine (Apple M1 Pro, 32GB RAM):
+FYI: outputs on my machine (Apple M1 Pro, 32GB RAM, 1TB SSD):
 ```
 loaded database in 0.000170959 s
 [0] queried k-NN in 0.008041208 s
