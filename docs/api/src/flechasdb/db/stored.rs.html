@@ -851,6 +851,18 @@
 <a href="#851" id="851">851</a>
 <a href="#852" id="852">852</a>
 <a href="#853" id="853">853</a>
+<a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+<a href="#857" id="857">857</a>
+<a href="#858" id="858">858</a>
+<a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
+<a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
+<a href="#863" id="863">863</a>
+<a href="#864" id="864">864</a>
+<a href="#865" id="865">865</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines a stored database.
 
 </span><span class="kw">use </span>core::borrow::Borrow;
@@ -1159,160 +1171,10 @@
 </span><span class="kw">type </span>PartitionRef&lt;<span class="lifetime">&#39;a</span>, T&gt; = Ref&lt;<span class="lifetime">&#39;a</span>, Partition&lt;T&gt;&gt;;
 
 <span class="doccomment">/// Reference type of an attribute value.
+///
+/// You should drop this as soon as possible to avoid panics by multiple
+/// borrowing.
 </span><span class="kw">pub type </span>AttributeValueRef&lt;<span class="lifetime">&#39;a</span>&gt; = Ref&lt;<span class="lifetime">&#39;a</span>, AttributeValue&gt;;
-
-<span class="kw">impl</span>&lt;FS&gt; LoadPartition&lt;f32&gt; <span class="kw">for </span>Database&lt;f32, FS&gt;
-<span class="kw">where
-    </span>FS: FileSystem,
-{
-    <span class="doccomment">/// Loads a partition.
-    ///
-    /// Loads a Protocol Buffers message (`p`) from the file system.
-    ///
-    /// Fails if:
-    /// - `index` exceeds the number of partitions.
-    /// - `self.vector_size` and `p.vector_size` do not match
-    /// - `self.num_divisions` and `p.num_divisions` do not match
-    /// - `p.num_vectors` and `p.encoded_vectors.len()` do not match
-    /// - `p.num_vectors` and `p.vector_ids.len()` do not match
-    /// - `p.num_divisions` and encoded vector length do not match
-    </span><span class="kw">fn </span>load_partition(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        index: usize,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Partition&lt;f32&gt;, Error&gt; {
-        <span class="kw">if </span>index &gt;= <span class="self">self</span>.num_partitions {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidArgs(<span class="macro">format!</span>(
-                <span class="string">&quot;index {} exceeds the number of partitions {}&quot;</span>,
-                index,
-                <span class="self">self</span>.num_partitions,
-            )));
-        }
-        <span class="kw">let </span><span class="kw-2">mut </span>f = <span class="self">self</span>.fs.open_hashed_file(<span class="macro">format!</span>(
-            <span class="string">&quot;partitions/{}.{}&quot;</span>,
-            <span class="self">self</span>.get_partition_id(index).unwrap(),
-            PROTOBUF_EXTENSION,
-        ))<span class="question-mark">?</span>;
-        <span class="kw">let </span>partition: ProtosPartition = read_message(<span class="kw-2">&amp;mut </span>f)<span class="question-mark">?</span>;
-        f.verify()<span class="question-mark">?</span>;
-        <span class="kw">let </span>vector_size = partition.vector_size <span class="kw">as </span>usize;
-        <span class="kw">let </span>num_divisions = partition.num_divisions <span class="kw">as </span>usize;
-        <span class="kw">let </span>encoded_vectors: BlockVectorSet&lt;u32&gt; = partition.encoded_vectors
-                .into_option()
-                .ok_or(Error::InvalidData(
-                    <span class="string">&quot;missing encoded vectors&quot;</span>.to_string(),
-                ))<span class="question-mark">?
-                </span>.deserialize()<span class="question-mark">?</span>;
-        <span class="kw">if </span>vector_size != <span class="self">self</span>.vector_size() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(
-                <span class="string">&quot;vector_size {} and partition.vector_size {} do not match&quot;</span>,
-                <span class="self">self</span>.vector_size(),
-                vector_size,
-            )));
-        }
-        <span class="kw">if </span>num_divisions != <span class="self">self</span>.num_divisions() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(
-                <span class="string">&quot;num_divisions {} and partition.num_divisions {} do not match&quot;</span>,
-                <span class="self">self</span>.num_divisions(),
-                num_divisions,
-            )));
-        }
-        <span class="kw">if </span>encoded_vectors.len() != partition.vector_ids.len() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(
-                <span class="string">&quot;number of vector IDs is inconsistent: exptected {} but got {}&quot;</span>,
-                encoded_vectors.len(),
-                partition.vector_ids.len(),
-            )));
-        }
-        <span class="kw">let </span>vector_ids: Vec&lt;Uuid&gt; = partition.vector_ids
-            .into_iter()
-            .map(|id| id.deserialize().unwrap())
-            .collect();
-        <span class="prelude-val">Ok</span>(Partition {
-            _t: std::marker::PhantomData,
-            encoded_vectors,
-            vector_ids,
-        })
-    }
-}
-
-<span class="kw">impl</span>&lt;FS&gt; LoadCodebook&lt;f32&gt; <span class="kw">for </span>Database&lt;f32, FS&gt;
-<span class="kw">where
-    </span>FS: FileSystem,
-{
-    <span class="doccomment">/// Loads a codebook.
-    ///
-    /// Fails if:
-    /// - `index` exceeds the number of codebooks.
-    /// - codebook file cannot be loaded.
-    /// - vector size does not match the subvector size of the database.
-    /// - number of vectors does not match that of the database.
-    </span><span class="kw">fn </span>load_codebook(<span class="kw-2">&amp;</span><span class="self">self</span>, index: usize) -&gt; <span class="prelude-ty">Result</span>&lt;BlockVectorSet&lt;f32&gt;, Error&gt;
-    <span class="kw">where
-        </span>FS: FileSystem,
-    {
-        <span class="kw">if </span>index &gt;= <span class="self">self</span>.num_divisions() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidArgs(<span class="macro">format!</span>(
-                <span class="string">&quot;index {} exceeds the number of codebooks {}&quot;</span>,
-                index,
-                <span class="self">self</span>.num_divisions(),
-            )));
-        }
-        <span class="kw">let </span><span class="kw-2">mut </span>f = <span class="self">self</span>.fs.open_hashed_file(<span class="macro">format!</span>(
-            <span class="string">&quot;codebooks/{}.{}&quot;</span>,
-            <span class="self">self</span>.get_codebook_id(index).unwrap(),
-            PROTOBUF_EXTENSION,
-        ))<span class="question-mark">?</span>;
-        <span class="kw">let </span>codebook: ProtosVectorSet = read_message(<span class="kw-2">&amp;mut </span>f)<span class="question-mark">?</span>;
-        f.verify()<span class="question-mark">?</span>;
-        <span class="kw">let </span>codebook: BlockVectorSet&lt;f32&gt; = codebook.deserialize()<span class="question-mark">?</span>;
-        <span class="kw">if </span>codebook.vector_size() != <span class="self">self</span>.subvector_size() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(
-                <span class="string">&quot;vector_size is inconsistent: expected {} but got {}&quot;</span>,
-                <span class="self">self</span>.subvector_size(),
-                codebook.vector_size(),
-            )));
-        }
-        <span class="kw">if </span>codebook.len() != <span class="self">self</span>.num_codes() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(
-                <span class="string">&quot;number of codes is inconsistent: expected {} but got {}&quot;</span>,
-                <span class="self">self</span>.num_codes(),
-                codebook.len(),
-            )));
-        }
-        <span class="prelude-val">Ok</span>(codebook)
-    }
-}
-
-<span class="kw">impl</span>&lt;FS&gt; LoadPartitionCentroids&lt;f32&gt; <span class="kw">for </span>Database&lt;f32, FS&gt;
-<span class="kw">where
-    </span>FS: FileSystem,
-{
-    <span class="kw">fn </span>load_partition_centroids(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;BlockVectorSet&lt;f32&gt;, Error&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>f = <span class="self">self</span>.fs.open_hashed_file(<span class="macro">format!</span>(
-            <span class="string">&quot;partitions/{}.{}&quot;</span>,
-            <span class="self">self</span>.partition_centroids_id,
-            PROTOBUF_EXTENSION,
-        ))<span class="question-mark">?</span>;
-        <span class="kw">let </span>partition_centroids: ProtosVectorSet = read_message(<span class="kw-2">&amp;mut </span>f)<span class="question-mark">?</span>;
-        <span class="kw">let </span>partition_centroids: BlockVectorSet&lt;f32&gt; =
-            partition_centroids.deserialize()<span class="question-mark">?</span>;
-        <span class="kw">if </span>partition_centroids.vector_size() != <span class="self">self</span>.vector_size() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(
-                <span class="string">&quot;partition centroids vector size mismatch: expected {}, got {}&quot;</span>,
-                <span class="self">self</span>.vector_size(),
-                partition_centroids.vector_size(),
-            )));
-        }
-        <span class="kw">if </span>partition_centroids.len() != <span class="self">self</span>.num_partitions() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(
-                <span class="string">&quot;partition centroids data length mismatch: expected {}, got {}&quot;</span>,
-                <span class="self">self</span>.num_partitions(),
-                partition_centroids.len(),
-            )));
-        }
-        <span class="prelude-val">Ok</span>(partition_centroids)
-    }
-}
 
 <span class="kw">impl</span>&lt;T, FS&gt; Database&lt;T, FS&gt;
 <span class="kw">where
@@ -1451,86 +1313,6 @@
             })
             .collect();
         <span class="prelude-val">Ok</span>(queries)
-    }
-}
-
-<span class="kw">impl</span>&lt;FS&gt; LoadDatabase&lt;f32, FS&gt; <span class="kw">for </span>Database&lt;f32, FS&gt;
-<span class="kw">where
-    </span>FS: FileSystem,
-{
-    <span class="doccomment">/// Loads a database.
-    ///
-    /// Fails if:
-    /// - `vector_size` is zero
-    /// - `num_divisions` is zero
-    /// - `num_partitions` is zero
-    /// - `num_codes` is zero
-    /// - `vector_size` is not a multiple of `num_divisions`
-    /// - `num_partitions` and `partitions_refs.len()` do not match
-    /// - `vector_size` and centroid size do not match
-    /// - `num_divisions` and `codebook_refs.len()` do not match
-    </span><span class="kw">fn </span>load_database&lt;P&gt;(fs: FS, path: P) -&gt; <span class="prelude-ty">Result</span>&lt;Database&lt;f32, FS&gt;, Error&gt;
-    <span class="kw">where
-        </span>P: AsRef&lt;str&gt;,
-    {
-        <span class="kw">let </span><span class="kw-2">mut </span>f = fs.open_hashed_file(path)<span class="question-mark">?</span>;
-        <span class="kw">let </span>db: ProtosDatabase = read_message(<span class="kw-2">&amp;mut </span>f)<span class="question-mark">?</span>;
-        f.verify()<span class="question-mark">?</span>;
-        <span class="kw">let </span>vector_size = db.vector_size <span class="kw">as </span>usize;
-        <span class="kw">let </span>num_partitions = db.num_partitions <span class="kw">as </span>usize;
-        <span class="kw">let </span>num_divisions = db.num_divisions <span class="kw">as </span>usize;
-        <span class="kw">let </span>num_codes = db.num_codes <span class="kw">as </span>usize;
-        <span class="kw">if </span>vector_size == <span class="number">0 </span>{
-            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(<span class="string">&quot;vector_size is zero&quot;</span>)));
-        }
-        <span class="kw">if </span>num_divisions == <span class="number">0 </span>{
-            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(<span class="string">&quot;num_divisions is zero&quot;</span>)));
-        }
-        <span class="kw">if </span>num_partitions == <span class="number">0 </span>{
-            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(<span class="string">&quot;num_partitions is zero&quot;</span>)));
-        }
-        <span class="kw">if </span>num_codes == <span class="number">0 </span>{
-            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(<span class="string">&quot;num_codes is zero&quot;</span>)));
-        }
-        <span class="kw">if </span>vector_size % num_divisions != <span class="number">0 </span>{
-            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(
-                <span class="string">&quot;vector_size {} is not multiple of num_divisions {}&quot;</span>,
-                vector_size,
-                num_divisions,
-            )));
-        }
-        <span class="kw">if </span>num_partitions != db.partition_ids.len() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(
-                <span class="string">&quot;num_partitions {} and partition_ids.len() {} do not match&quot;</span>,
-                db.num_partitions,
-                db.partition_ids.len(),
-            )));
-        }
-        <span class="kw">if </span>num_divisions != db.codebook_ids.len() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(
-                <span class="string">&quot;num_divisions {} and codebook_ids.len() {} do not match&quot;</span>,
-                db.num_divisions,
-                db.codebook_ids.len(),
-            )));
-        }
-        <span class="kw">let </span>db = Database {
-            fs,
-            vector_size,
-            num_partitions,
-            num_divisions,
-            num_codes,
-            partition_ids: db.partition_ids,
-            partitions: RefCell::new(<span class="macro">vec!</span>[<span class="prelude-val">None</span>; num_partitions]),
-            partition_centroids_id: db.partition_centroids_id,
-            partition_centroids: OnceCell::new(),
-            codebook_ids: db.codebook_ids,
-            codebooks: RefCell::new(<span class="prelude-val">None</span>),
-            attributes_log_ids: db.attributes_log_ids,
-            attributes_log_load_flags:
-                RefCell::new(<span class="macro">vec!</span>[<span class="bool-val">false</span>; num_partitions]),
-            attribute_table: RefCell::new(<span class="prelude-val">None</span>),
-        };
-        <span class="prelude-val">Ok</span>(db)
     }
 }
 
@@ -1703,5 +1485,247 @@
     <span class="comment">// for verification
     </span>partition_id: String,
     attributes_log_id: String,
+}
+
+<span class="kw">mod </span>f32impl {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+
+    <span class="kw">impl</span>&lt;FS&gt; LoadDatabase&lt;f32, FS&gt; <span class="kw">for </span>Database&lt;f32, FS&gt;
+    <span class="kw">where
+        </span>FS: FileSystem,
+    {
+        <span class="doccomment">/// Loads a database.
+        ///
+        /// Fails if:
+        /// - `vector_size` is zero
+        /// - `num_divisions` is zero
+        /// - `num_partitions` is zero
+        /// - `num_codes` is zero
+        /// - `vector_size` is not a multiple of `num_divisions`
+        /// - `num_partitions` and `partitions_refs.len()` do not match
+        /// - `vector_size` and centroid size do not match
+        /// - `num_divisions` and `codebook_refs.len()` do not match
+        </span><span class="kw">fn </span>load_database&lt;P&gt;(fs: FS, path: P) -&gt; <span class="prelude-ty">Result</span>&lt;Database&lt;f32, FS&gt;, Error&gt;
+        <span class="kw">where
+            </span>P: AsRef&lt;str&gt;,
+        {
+            <span class="kw">let </span><span class="kw-2">mut </span>f = fs.open_hashed_file(path)<span class="question-mark">?</span>;
+            <span class="kw">let </span>db: ProtosDatabase = read_message(<span class="kw-2">&amp;mut </span>f)<span class="question-mark">?</span>;
+            f.verify()<span class="question-mark">?</span>;
+            <span class="kw">let </span>vector_size = db.vector_size <span class="kw">as </span>usize;
+            <span class="kw">let </span>num_partitions = db.num_partitions <span class="kw">as </span>usize;
+            <span class="kw">let </span>num_divisions = db.num_divisions <span class="kw">as </span>usize;
+            <span class="kw">let </span>num_codes = db.num_codes <span class="kw">as </span>usize;
+            <span class="kw">if </span>vector_size == <span class="number">0 </span>{
+                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(<span class="string">&quot;vector_size is zero&quot;</span>)));
+            }
+            <span class="kw">if </span>num_divisions == <span class="number">0 </span>{
+                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(<span class="string">&quot;num_divisions is zero&quot;</span>)));
+            }
+            <span class="kw">if </span>num_partitions == <span class="number">0 </span>{
+                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(<span class="string">&quot;num_partitions is zero&quot;</span>)));
+            }
+            <span class="kw">if </span>num_codes == <span class="number">0 </span>{
+                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(<span class="string">&quot;num_codes is zero&quot;</span>)));
+            }
+            <span class="kw">if </span>vector_size % num_divisions != <span class="number">0 </span>{
+                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(
+                    <span class="string">&quot;vector_size {} is not multiple of num_divisions {}&quot;</span>,
+                    vector_size,
+                    num_divisions,
+                )));
+            }
+            <span class="kw">if </span>num_partitions != db.partition_ids.len() {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(
+                    <span class="string">&quot;num_partitions {} and partition_ids.len() {} do not match&quot;</span>,
+                    db.num_partitions,
+                    db.partition_ids.len(),
+                )));
+            }
+            <span class="kw">if </span>num_divisions != db.codebook_ids.len() {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(
+                    <span class="string">&quot;num_divisions {} and codebook_ids.len() {} do not match&quot;</span>,
+                    db.num_divisions,
+                    db.codebook_ids.len(),
+                )));
+            }
+            <span class="kw">let </span>db = Database {
+                fs,
+                vector_size,
+                num_partitions,
+                num_divisions,
+                num_codes,
+                partition_ids: db.partition_ids,
+                partitions: RefCell::new(<span class="macro">vec!</span>[<span class="prelude-val">None</span>; num_partitions]),
+                partition_centroids_id: db.partition_centroids_id,
+                partition_centroids: OnceCell::new(),
+                codebook_ids: db.codebook_ids,
+                codebooks: RefCell::new(<span class="prelude-val">None</span>),
+                attributes_log_ids: db.attributes_log_ids,
+                attributes_log_load_flags:
+                    RefCell::new(<span class="macro">vec!</span>[<span class="bool-val">false</span>; num_partitions]),
+                attribute_table: RefCell::new(<span class="prelude-val">None</span>),
+            };
+            <span class="prelude-val">Ok</span>(db)
+        }
+    }
+
+    <span class="kw">impl</span>&lt;FS&gt; LoadPartitionCentroids&lt;f32&gt; <span class="kw">for </span>Database&lt;f32, FS&gt;
+    <span class="kw">where
+        </span>FS: FileSystem,
+    {
+        <span class="kw">fn </span>load_partition_centroids(
+            <span class="kw-2">&amp;</span><span class="self">self</span>,
+        ) -&gt; <span class="prelude-ty">Result</span>&lt;BlockVectorSet&lt;f32&gt;, Error&gt; {
+            <span class="kw">let </span><span class="kw-2">mut </span>f = <span class="self">self</span>.fs.open_hashed_file(<span class="macro">format!</span>(
+                <span class="string">&quot;partitions/{}.{}&quot;</span>,
+                <span class="self">self</span>.partition_centroids_id,
+                PROTOBUF_EXTENSION,
+            ))<span class="question-mark">?</span>;
+            <span class="kw">let </span>partition_centroids: ProtosVectorSet = read_message(<span class="kw-2">&amp;mut </span>f)<span class="question-mark">?</span>;
+            <span class="kw">let </span>partition_centroids: BlockVectorSet&lt;f32&gt; =
+                partition_centroids.deserialize()<span class="question-mark">?</span>;
+            <span class="kw">if </span>partition_centroids.vector_size() != <span class="self">self</span>.vector_size() {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(
+                    <span class="string">&quot;partition centroids vector size mismatch: expected {}, got {}&quot;</span>,
+                    <span class="self">self</span>.vector_size(),
+                    partition_centroids.vector_size(),
+                )));
+            }
+            <span class="kw">if </span>partition_centroids.len() != <span class="self">self</span>.num_partitions() {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(
+                    <span class="string">&quot;partition centroids data length mismatch: expected {}, got {}&quot;</span>,
+                    <span class="self">self</span>.num_partitions(),
+                    partition_centroids.len(),
+                )));
+            }
+            <span class="prelude-val">Ok</span>(partition_centroids)
+        }
+    }
+
+    <span class="kw">impl</span>&lt;FS&gt; LoadCodebook&lt;f32&gt; <span class="kw">for </span>Database&lt;f32, FS&gt;
+    <span class="kw">where
+        </span>FS: FileSystem,
+    {
+        <span class="doccomment">/// Loads a codebook.
+        ///
+        /// Fails if:
+        /// - `index` exceeds the number of codebooks.
+        /// - codebook file cannot be loaded.
+        /// - vector size does not match the subvector size of the database.
+        /// - number of vectors does not match that of the database.
+        </span><span class="kw">fn </span>load_codebook(
+            <span class="kw-2">&amp;</span><span class="self">self</span>,
+            index: usize,
+        ) -&gt; <span class="prelude-ty">Result</span>&lt;BlockVectorSet&lt;f32&gt;, Error&gt;
+        <span class="kw">where
+            </span>FS: FileSystem,
+        {
+            <span class="kw">if </span>index &gt;= <span class="self">self</span>.num_divisions() {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidArgs(<span class="macro">format!</span>(
+                    <span class="string">&quot;index {} exceeds the number of codebooks {}&quot;</span>,
+                    index,
+                    <span class="self">self</span>.num_divisions(),
+                )));
+            }
+            <span class="kw">let </span><span class="kw-2">mut </span>f = <span class="self">self</span>.fs.open_hashed_file(<span class="macro">format!</span>(
+                <span class="string">&quot;codebooks/{}.{}&quot;</span>,
+                <span class="self">self</span>.get_codebook_id(index).unwrap(),
+                PROTOBUF_EXTENSION,
+            ))<span class="question-mark">?</span>;
+            <span class="kw">let </span>codebook: ProtosVectorSet = read_message(<span class="kw-2">&amp;mut </span>f)<span class="question-mark">?</span>;
+            f.verify()<span class="question-mark">?</span>;
+            <span class="kw">let </span>codebook: BlockVectorSet&lt;f32&gt; = codebook.deserialize()<span class="question-mark">?</span>;
+            <span class="kw">if </span>codebook.vector_size() != <span class="self">self</span>.subvector_size() {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(
+                    <span class="string">&quot;vector_size is inconsistent: expected {} but got {}&quot;</span>,
+                    <span class="self">self</span>.subvector_size(),
+                    codebook.vector_size(),
+                )));
+            }
+            <span class="kw">if </span>codebook.len() != <span class="self">self</span>.num_codes() {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(
+                    <span class="string">&quot;number of codes is inconsistent: expected {} but got {}&quot;</span>,
+                    <span class="self">self</span>.num_codes(),
+                    codebook.len(),
+                )));
+            }
+            <span class="prelude-val">Ok</span>(codebook)
+        }
+    }
+
+    <span class="kw">impl</span>&lt;FS&gt; LoadPartition&lt;f32&gt; <span class="kw">for </span>Database&lt;f32, FS&gt;
+    <span class="kw">where
+        </span>FS: FileSystem,
+    {
+        <span class="doccomment">/// Loads a partition.
+        ///
+        /// Loads a Protocol Buffers message (`p`) from the file system.
+        ///
+        /// Fails if:
+        /// - `index` exceeds the number of partitions.
+        /// - `self.vector_size` and `p.vector_size` do not match
+        /// - `self.num_divisions` and `p.num_divisions` do not match
+        /// - `p.num_vectors` and `p.encoded_vectors.len()` do not match
+        /// - `p.num_vectors` and `p.vector_ids.len()` do not match
+        /// - `p.num_divisions` and encoded vector length do not match
+        </span><span class="kw">fn </span>load_partition(
+            <span class="kw-2">&amp;</span><span class="self">self</span>,
+            index: usize,
+        ) -&gt; <span class="prelude-ty">Result</span>&lt;Partition&lt;f32&gt;, Error&gt; {
+            <span class="kw">if </span>index &gt;= <span class="self">self</span>.num_partitions {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidArgs(<span class="macro">format!</span>(
+                    <span class="string">&quot;index {} exceeds the number of partitions {}&quot;</span>,
+                    index,
+                    <span class="self">self</span>.num_partitions,
+                )));
+            }
+            <span class="kw">let </span><span class="kw-2">mut </span>f = <span class="self">self</span>.fs.open_hashed_file(<span class="macro">format!</span>(
+                <span class="string">&quot;partitions/{}.{}&quot;</span>,
+                <span class="self">self</span>.get_partition_id(index).unwrap(),
+                PROTOBUF_EXTENSION,
+            ))<span class="question-mark">?</span>;
+            <span class="kw">let </span>partition: ProtosPartition = read_message(<span class="kw-2">&amp;mut </span>f)<span class="question-mark">?</span>;
+            f.verify()<span class="question-mark">?</span>;
+            <span class="kw">let </span>vector_size = partition.vector_size <span class="kw">as </span>usize;
+            <span class="kw">let </span>num_divisions = partition.num_divisions <span class="kw">as </span>usize;
+            <span class="kw">let </span>encoded_vectors: BlockVectorSet&lt;u32&gt; = partition.encoded_vectors
+                .into_option()
+                .ok_or(Error::InvalidData(
+                    <span class="string">&quot;missing encoded vectors&quot;</span>.to_string(),
+                ))<span class="question-mark">?
+                </span>.deserialize()<span class="question-mark">?</span>;
+            <span class="kw">if </span>vector_size != <span class="self">self</span>.vector_size() {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(
+                    <span class="string">&quot;vector_size {} and partition.vector_size {} do not match&quot;</span>,
+                    <span class="self">self</span>.vector_size(),
+                    vector_size,
+                )));
+            }
+            <span class="kw">if </span>num_divisions != <span class="self">self</span>.num_divisions() {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(
+                    <span class="string">&quot;num_divisions {} and partition.num_divisions {} do not match&quot;</span>,
+                    <span class="self">self</span>.num_divisions(),
+                    num_divisions,
+                )));
+            }
+            <span class="kw">if </span>encoded_vectors.len() != partition.vector_ids.len() {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidData(<span class="macro">format!</span>(
+                    <span class="string">&quot;number of vector IDs is inconsistent: exptected {} but got {}&quot;</span>,
+                    encoded_vectors.len(),
+                    partition.vector_ids.len(),
+                )));
+            }
+            <span class="kw">let </span>vector_ids: Vec&lt;Uuid&gt; = partition.vector_ids
+                .into_iter()
+                .map(|id| id.deserialize().unwrap())
+                .collect();
+            <span class="prelude-val">Ok</span>(Partition {
+                _t: std::marker::PhantomData,
+                encoded_vectors,
+                vector_ids,
+            })
+        }
+    }
 }
 </code></pre></div></section></main></body></html>
