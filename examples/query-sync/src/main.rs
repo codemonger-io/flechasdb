@@ -31,7 +31,7 @@ fn main() {
         let time = std::time::Instant::now();
         for (i, result) in results.into_iter().enumerate() {
             // getting attributes will incur additional disk reads
-            let attr = db.get_attribute_of(&result, "datum_id").unwrap();
+            let attr = result.get_attribute("datum_id").unwrap();
             println!(
                 "\t{}: partition={}, approx. distance²={}, datum_id={:?}",
                 i,
