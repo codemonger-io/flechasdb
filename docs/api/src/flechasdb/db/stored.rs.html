@@ -863,6 +863,13 @@
 <a href="#863" id="863">863</a>
 <a href="#864" id="864">864</a>
 <a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
+<a href="#870" id="870">870</a>
+<a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines a stored database.
 
 </span><span class="kw">use </span>core::borrow::Borrow;
@@ -974,14 +981,14 @@
     /// The first call to this function will take longer because it loads all
     /// the attributes.
     /// If you want to get attributes of your query results, please use
-    /// `get_attribute_of` instead.
+    /// [`QueryResult::get_attribute`] instead.
     ///
     /// `None` if the vector exists but no value is associated with `key`.
     ///
-    /// Fails if no vector is associated with `id`.
+    /// Fails if no vector is associated with `vector_id`.
     </span><span class="kw">pub fn </span>get_attribute&lt;K&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        id: <span class="kw-2">&amp;</span>Uuid,
+        vector_id: <span class="kw-2">&amp;</span>Uuid,
         key: <span class="kw-2">&amp;</span>K,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;AttributeValueRef&gt;, Error&gt;
     <span class="kw">where
@@ -991,47 +998,27 @@
         <span class="kw">if </span><span class="self">self</span>.attribute_table.borrow().is_none() {
             <span class="self">self</span>.load_attribute_table()<span class="question-mark">?</span>;
         }
-        <span class="self">self</span>.get_attribute_no_loading(id, key)
+        <span class="self">self</span>.get_attribute_internal(vector_id, key)
     }
 
-    <span class="doccomment">/// Returns an attribute value of a given vector.
-    ///
-    /// This function will be more efficient if you have a query result.
-    ///
-    /// `None` if no value is associated with `key`.
-    ///
-    /// Fails if a query result is not from this database.
-    </span><span class="kw">pub fn </span>get_attribute_of&lt;K&gt;(
+    <span class="comment">// Returns an attribute value of a given vector in a specific partition.
+    </span><span class="kw">fn </span>get_attribute_in_partition&lt;K&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        query_result: <span class="kw-2">&amp;</span>QueryResult&lt;T&gt;,
+        partition_index: usize,
+        vector_id: <span class="kw-2">&amp;</span>Uuid,
         key: <span class="kw-2">&amp;</span>K,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;AttributeValueRef&gt;, Error&gt;
     <span class="kw">where
         </span>String: Borrow&lt;K&gt;,
         K: Hash + Eq + <span class="question-mark">?</span>Sized,
     {
-        <span class="kw">let </span>partition_index = query_result.partition_index;
-        <span class="kw">if </span><span class="self">self</span>.partition_ids[partition_index] != query_result.partition_id {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidArgs(<span class="macro">format!</span>(
-                <span class="string">&quot;incompatible patition: expected {} but got {}&quot;</span>,
-                <span class="self">self</span>.partition_ids[partition_index],
-                query_result.partition_id,
-            )));
-        }
-        <span class="kw">if </span><span class="self">self</span>.attributes_log_ids[partition_index] != query_result.attributes_log_id {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidArgs(<span class="macro">format!</span>(
-                <span class="string">&quot;incompatible attributes log: expected {} but got {}&quot;</span>,
-                <span class="self">self</span>.attributes_log_ids[partition_index],
-                query_result.attributes_log_id,
-            )));
-        }
         <span class="self">self</span>.load_attributes_log(partition_index)<span class="question-mark">?</span>;
-        <span class="self">self</span>.get_attribute_no_loading(<span class="kw-2">&amp;</span>query_result.vector_id, key)
+        <span class="self">self</span>.get_attribute_internal(vector_id, key)
     }
 
-    <span class="kw">fn </span>get_attribute_no_loading&lt;K&gt;(
+    <span class="kw">fn </span>get_attribute_internal&lt;K&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        id: <span class="kw-2">&amp;</span>Uuid,
+        vector_id: <span class="kw-2">&amp;</span>Uuid,
         key: <span class="kw-2">&amp;</span>K,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;AttributeValueRef&gt;, Error&gt;
     <span class="kw">where
@@ -1044,8 +1031,10 @@
         ).expect(<span class="string">&quot;attribute table must be loaded&quot;</span>);
         <span class="kw">let </span>attributes = Ref::filter_map(
             attribute_table,
-            |tbl| tbl.get(id),
-        ).or(<span class="prelude-val">Err</span>(Error::InvalidArgs(<span class="macro">format!</span>(<span class="string">&quot;no such vector ID: {}&quot;</span>, id))))<span class="question-mark">?</span>;
+            |tbl| tbl.get(vector_id),
+        ).or(<span class="prelude-val">Err</span>(Error::InvalidArgs(
+            <span class="macro">format!</span>(<span class="string">&quot;no such vector ID: {}&quot;</span>, vector_id),
+        )))<span class="question-mark">?</span>;
         <span class="kw">match </span>Ref::filter_map(attributes, |attrs| attrs.get(key)) {
             <span class="prelude-val">Ok</span>(value) =&gt; <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(value)),
             <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
@@ -1186,12 +1175,12 @@
     ///
     /// The first call to this function will take longer because it lazily
     /// loads partition centroids, and codebooks.
-    </span><span class="kw">pub fn </span>query&lt;V&gt;(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+    </span><span class="kw">pub fn </span>query&lt;<span class="lifetime">&#39;a</span>, V&gt;(
+        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>,
         v: <span class="kw-2">&amp;</span>V,
         k: NonZeroUsize,
         nprobe: NonZeroUsize,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;QueryResult&lt;T&gt;&gt;, Error&gt;
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;QueryResult&lt;<span class="lifetime">&#39;a</span>, T, FS&gt;&gt;, Error&gt;
     <span class="kw">where
         </span>V: AsSlice&lt;T&gt; + <span class="question-mark">?</span>Sized,
     {
@@ -1202,13 +1191,13 @@
     ///
     /// The first call to this function will take longer because it lazily
     /// loads partition centroids, and codebooks.
-    </span><span class="kw">pub fn </span>query_with_events&lt;V, EventHandler&gt;(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+    </span><span class="kw">pub fn </span>query_with_events&lt;<span class="lifetime">&#39;a</span>, V, EventHandler&gt;(
+        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>,
         v: <span class="kw-2">&amp;</span>V,
         k: NonZeroUsize,
         nprobe: NonZeroUsize,
         <span class="kw-2">mut </span>event: EventHandler,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;QueryResult&lt;T&gt;&gt;, Error&gt;
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;QueryResult&lt;<span class="lifetime">&#39;a</span>, T, FS&gt;&gt;, Error&gt;
     <span class="kw">where
         </span>V: AsSlice&lt;T&gt; + <span class="question-mark">?</span>Sized,
         EventHandler: FnMut(QueryEvent) -&gt; (),
@@ -1234,7 +1223,7 @@
         <span class="kw">let </span>v = v.as_slice();
         <span class="kw">let </span>queries = <span class="self">self</span>.query_partitions(v, k, nprobe)<span class="question-mark">?</span>;
         event(QueryEvent::FinishedPartitionSelection);
-        <span class="kw">let </span>all_results: Vec&lt;Vec&lt;QueryResult&lt;T&gt;&gt;&gt; = queries
+        <span class="kw">let </span>all_results: Vec&lt;Vec&lt;QueryResult&lt;<span class="lifetime">&#39;a</span>, T, FS&gt;&gt;&gt; = queries
             .into_iter()
             .map(|query| {
                 event(QueryEvent::StartingPartitionQuery(
@@ -1250,7 +1239,7 @@
             })
             .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, Error&gt;&gt;()<span class="question-mark">?</span>;
         event(QueryEvent::StartingResultSelection);
-        <span class="kw">let </span><span class="kw-2">mut </span>all_results: Vec&lt;QueryResult&lt;T&gt;&gt; = all_results
+        <span class="kw">let </span><span class="kw-2">mut </span>all_results: Vec&lt;QueryResult&lt;<span class="lifetime">&#39;a</span>, T, FS&gt;&gt; = all_results
             .into_iter()
             .flatten()
             .n_best_by_key(k.get(), |r| r.squared_distance)
@@ -1302,7 +1291,7 @@
         </span><span class="kw">let </span>queries = distances
             .into_iter()
             .map(|(pi, localized, <span class="kw">_</span>)| PartitionQuery {
-                database: <span class="self">self</span>,
+                db: <span class="self">self</span>,
                 codebooks: Ref::map(
                     <span class="self">self</span>.codebooks.borrow(),
                     |cb| cb.as_ref().unwrap(),
@@ -1407,7 +1396,7 @@
 
 <span class="doccomment">/// Query in a specific partition.
 </span><span class="kw">struct </span>PartitionQuery&lt;<span class="lifetime">&#39;a</span>, T, FS&gt; {
-    database: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Database&lt;T, FS&gt;,
+    db: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Database&lt;T, FS&gt;,
     codebooks: Ref&lt;<span class="lifetime">&#39;a</span>, Vec&lt;BlockVectorSet&lt;T&gt;&gt;&gt;,
     partition_index: usize,
     localized: Vec&lt;T&gt;, <span class="comment">// query vector - partition centroid
@@ -1420,12 +1409,12 @@
     FS: FileSystem,
     Database&lt;T, FS&gt;: LoadPartition&lt;T&gt; + LoadCodebook&lt;T&gt;,
 {
-    <span class="kw">fn </span>execute(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;QueryResult&lt;T&gt;&gt;, Error&gt; {
-        <span class="kw">let </span>num_divisions = <span class="self">self</span>.database.num_divisions();
-        <span class="kw">let </span>num_codes = <span class="self">self</span>.database.num_codes();
-        <span class="kw">let </span>subvector_size = <span class="self">self</span>.database.subvector_size();
+    <span class="kw">fn </span>execute(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;QueryResult&lt;<span class="lifetime">&#39;a</span>, T, FS&gt;&gt;, Error&gt; {
+        <span class="kw">let </span>num_divisions = <span class="self">self</span>.db.num_divisions();
+        <span class="kw">let </span>num_codes = <span class="self">self</span>.db.num_codes();
+        <span class="kw">let </span>subvector_size = <span class="self">self</span>.db.subvector_size();
         <span class="comment">// loads the partition
-        </span><span class="kw">let </span>partition = <span class="self">self</span>.database.get_partition(<span class="self">self</span>.partition_index)<span class="question-mark">?</span>;
+        </span><span class="kw">let </span>partition = <span class="self">self</span>.db.get_partition(<span class="self">self</span>.partition_index)<span class="question-mark">?</span>;
         <span class="comment">// calculates the distance table
         </span><span class="kw">let </span><span class="kw-2">mut </span>distance_table: Vec&lt;T&gt; =
             Vec::with_capacity(num_divisions * num_codes);
@@ -1447,8 +1436,11 @@
         }
         <span class="comment">// approximates the squared distances to vectors in the partition
         </span><span class="kw">let </span>num_vectors = partition.num_vectors();
-        <span class="kw">let </span><span class="kw-2">mut </span>results: NBestByKey&lt;QueryResult&lt;T&gt;, T, <span class="kw">_</span>&gt; =
-            NBestByKey::new(<span class="self">self</span>.k, |i: <span class="kw-2">&amp;</span>QueryResult&lt;T&gt;| i.squared_distance);
+        <span class="kw">let </span><span class="kw-2">mut </span>results: NBestByKey&lt;QueryResult&lt;<span class="lifetime">&#39;a</span>, T, FS&gt;, T, <span class="kw">_</span>&gt; =
+            NBestByKey::new(
+                <span class="self">self</span>.k,
+                |i: <span class="kw-2">&amp;</span>QueryResult&lt;<span class="lifetime">&#39;a</span>, T, FS&gt;| i.squared_distance,
+            );
         <span class="kw">for </span>vi <span class="kw">in </span><span class="number">0</span>..num_vectors {
             <span class="kw">let </span>encoded_vector = partition.get_encoded_vector(vi).unwrap();
             <span class="kw">let </span><span class="kw-2">mut </span>distance = T::zero();
@@ -1457,14 +1449,11 @@
                 distance += distance_table[di * num_codes + ci];
             }
             results.push(QueryResult {
+                db: <span class="self">self</span>.db,
                 partition_index: <span class="self">self</span>.partition_index,
                 vector_id: partition.get_vector_id(vi).unwrap().clone(),
                 vector_index: vi,
                 squared_distance: distance,
-                partition_id:
-                    <span class="self">self</span>.database.partition_ids[<span class="self">self</span>.partition_index].clone(),
-                attributes_log_id:
-                    <span class="self">self</span>.database.attributes_log_ids[<span class="self">self</span>.partition_index].clone(),
             });
         }
         <span class="prelude-val">Ok</span>(results.into())
@@ -1472,8 +1461,9 @@
 }
 
 <span class="doccomment">/// Query result.
-</span><span class="attr">#[derive(Clone, Debug)]
-</span><span class="kw">pub struct </span>QueryResult&lt;T&gt; {
+</span><span class="attr">#[derive(Clone)]
+</span><span class="kw">pub struct </span>QueryResult&lt;<span class="lifetime">&#39;a</span>, T, FS&gt; {
+    db: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Database&lt;T, FS&gt;,
     <span class="doccomment">/// Partition index.
     </span><span class="kw">pub </span>partition_index: usize,
     <span class="doccomment">/// Vector ID. Must be unique across the entire database.
@@ -1482,9 +1472,33 @@
     </span><span class="kw">pub </span>vector_index: usize,
     <span class="doccomment">/// Approximate squared distance.
     </span><span class="kw">pub </span>squared_distance: T,
-    <span class="comment">// for verification
-    </span>partition_id: String,
-    attributes_log_id: String,
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, T, FS&gt; QueryResult&lt;<span class="lifetime">&#39;a</span>, T, FS&gt;
+<span class="kw">where
+    </span>T: Scalar,
+    FS: FileSystem,
+    Database&lt;T, FS&gt;:
+        LoadPartition&lt;T&gt; + LoadCodebook&lt;T&gt; + LoadPartitionCentroids&lt;T&gt;,
+{
+    <span class="doccomment">/// Returns an attribute value of the vector corresponding to the result.
+    ///
+    /// The first call of this function on a result belonging to a partition
+    /// will take longer because it will load the attributes of the partition.
+    </span><span class="kw">pub fn </span>get_attribute&lt;K&gt;(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        key: <span class="kw-2">&amp;</span>K,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;AttributeValueRef&gt;, Error&gt;
+    <span class="kw">where
+        </span>String: Borrow&lt;K&gt;,
+        K: Hash + Eq + <span class="question-mark">?</span>Sized,
+    {
+        <span class="self">self</span>.db.get_attribute_in_partition(
+            <span class="self">self</span>.partition_index,
+            <span class="kw-2">&amp;</span><span class="self">self</span>.vector_id,
+            key,
+        )
+    }
 }
 
 <span class="kw">mod </span>f32impl {
