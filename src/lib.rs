@@ -9,6 +9,7 @@ pub mod error;
 pub mod io;
 pub mod kmeans;
 pub mod linalg;
+pub mod nbest;
 pub mod numbers;
 pub mod partitions;
 pub mod protos;
