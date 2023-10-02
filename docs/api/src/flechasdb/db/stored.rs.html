@@ -870,6 +870,16 @@
 <a href="#870" id="870">870</a>
 <a href="#871" id="871">871</a>
 <a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
+<a href="#881" id="881">881</a>
+<a href="#882" id="882">882</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines a stored database.
 
 </span><span class="kw">use </span>core::borrow::Borrow;
@@ -924,6 +934,7 @@
     codebooks: RefCell&lt;<span class="prelude-ty">Option</span>&lt;Vec&lt;BlockVectorSet&lt;T&gt;&gt;&gt;&gt;,
     attributes_log_ids: Vec&lt;String&gt;,
     attributes_log_load_flags: RefCell&lt;Vec&lt;bool&gt;&gt;,
+    attribute_names: Vec&lt;String&gt;,
     attribute_table: RefCell&lt;<span class="prelude-ty">Option</span>&lt;AttributeTable&gt;&gt;,
 }
 
@@ -1079,6 +1090,12 @@
             |tbl| tbl.as_mut(),
         ).expect(<span class="string">&quot;attribute table must exist&quot;</span>);
         <span class="kw">for </span>(i, entry) <span class="kw">in </span>attributes_log.entries.into_iter().enumerate() {
+            <span class="kw">let </span>attribute_name = <span class="self">self</span>.attribute_names
+                .get(entry.name_index <span class="kw">as </span>usize)
+                .ok_or(Error::InvalidData(<span class="macro">format!</span>(
+                    <span class="string">&quot;attribute name index out of bounds: {}&quot;</span>,
+                    entry.name_index,
+                )))<span class="question-mark">?</span>;
             <span class="kw">let </span>vector_id = entry.vector_id
                 .into_option()
                 .ok_or(Error::InvalidData(<span class="macro">format!</span>(
@@ -1097,7 +1114,7 @@
                 </span>.deserialize()<span class="question-mark">?</span>;
             <span class="kw">match </span>attribute_table.entry(vector_id) {
                 HashMapEntry::Occupied(slot) =&gt; {
-                    <span class="kw">match </span>slot.into_mut().entry(entry.name) {
+                    <span class="kw">match </span>slot.into_mut().entry(attribute_name.clone()) {
                         HashMapEntry::Occupied(slot) =&gt; {
                             <span class="kw-2">*</span>slot.into_mut() = value;
                         },
@@ -1107,7 +1124,9 @@
                     };
                 },
                 HashMapEntry::Vacant(slot) =&gt; {
-                    slot.insert(Attributes::from([(entry.name, value)]));
+                    slot.insert(Attributes::from([
+                        (attribute_name.clone(), value),
+                    ]));
                 },
             };
         }
@@ -1578,6 +1597,7 @@
                 attributes_log_ids: db.attributes_log_ids,
                 attributes_log_load_flags:
                     RefCell::new(<span class="macro">vec!</span>[<span class="bool-val">false</span>; num_partitions]),
+                attribute_names: db.attribute_names,
                 attribute_table: RefCell::new(<span class="prelude-val">None</span>),
             };
             <span class="prelude-val">Ok</span>(db)
