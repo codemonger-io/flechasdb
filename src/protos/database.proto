@@ -37,6 +37,10 @@ message Database {
   // Each partition has a separate attributes log.
   // Number of elements must match num_partitions.
   repeated string attributes_log_ids = 13;
+
+  // Attribute names in the database.
+  // Every attribute name is represented (encoded) as the index in this list.
+  repeated string attribute_names = 14;
 }
 
 // Single partition.
@@ -103,8 +107,9 @@ message AttributesLog {
 message OperationSetAttribute {
   // Vector ID.
   Uuid vector_id = 1;
-  // Name of the attribute to set.
-  string name = 2;
+  // Index of the name of the attribute to set.
+  // The name is stored at this index in `attribute_names` in the database.
+  uint32 name_index = 2;
   // Value of the attribute to set.
   AttributeValue value = 3;
 }
