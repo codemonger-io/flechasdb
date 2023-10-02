@@ -1,6 +1,7 @@
 //! [`Database`] into Protocol Buffers data.
 
 use core::iter::IntoIterator;
+use std::collections::BTreeSet;
 
 use crate::error::Error;
 use crate::io::{FileSystem, HashedFileOut};
@@ -40,9 +41,11 @@ where
         serialize_partition_centroids(&db.partitions, fs)?;
     // serializes codebooks
     let codebook_ids = serialize_codebooks(&db.codebooks, fs)?;
+    // sorts attribute names
+    let attribute_names = get_sorted_attribute_names(&db);
     // serializes attributes
     let attributes_log_ids =
-        serialize_attribute_table(&db, &partition_ids, fs)?;
+        serialize_attribute_table(&db, &partition_ids, &attribute_names, fs)?;
     // serializes the database
     let db = DatabaseSerialize {
         database: db,
@@ -50,6 +53,7 @@ where
         partition_centroids_id,
         codebook_ids,
         attributes_log_ids,
+        attribute_names,
     };
     let db = db.serialize()?;
     let mut f = fs.create_hashed_file()?;
@@ -141,10 +145,25 @@ where
     f.persist(PROTOBUF_EXTENSION)
 }
 
+// Obtains the sorted attribute names from a database.
+fn get_sorted_attribute_names<T, VS>(db: &Database<T, VS>) -> Vec<String>
+where
+    VS: VectorSet<T>,
+{
+    let mut attribute_names: BTreeSet<String> = BTreeSet::new();
+    for attributes in db.attribute_table.values() {
+        attribute_names.extend(attributes.keys().cloned());
+    }
+    attribute_names.into_iter().collect()
+}
+
 // Serializes an attribute table.
+//
+// `attribute_names` must be sorted.
 fn serialize_attribute_table<T, VS, FS>(
     db: &Database<T, VS>,
     partition_ids: &Vec<String>,
+    attribute_names: &Vec<String>,
     fs: &mut FS,
 ) -> Result<Vec<String>, Error>
 where
@@ -167,7 +186,12 @@ where
                 for (name, value) in attributes.iter() {
                     let mut set_attribute = ProtosOperationSetAttribute::new();
                     set_attribute.vector_id = Some(id.serialize()?).into();
-                    set_attribute.name = name.clone();
+                    set_attribute.name_index = attribute_names
+                        .binary_search(name)
+                        .or(Err(Error::InvalidContext(format!(
+                            "attribute name must be encoded: {}",
+                            name,
+                        ))))? as u32;
                     set_attribute.value = Some(value.serialize()?).into();
                     attributes_log.entries.push(set_attribute);
                 }
@@ -190,6 +214,7 @@ where
     partition_centroids_id: String,
     codebook_ids: Vec<String>,
     attributes_log_ids: Vec<String>,
+    attribute_names: Vec<String>,
 }
 
 impl<'a, T, VS> core::ops::Deref for DatabaseSerialize<'a, T, VS>
@@ -217,6 +242,7 @@ where
         db.partition_centroids_id = self.partition_centroids_id.clone();
         db.codebook_ids = self.codebook_ids.clone();
         db.attributes_log_ids = self.attributes_log_ids.clone();
+        db.attribute_names = self.attribute_names.clone();
         Ok(db)
     }
 }
