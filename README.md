@@ -287,6 +287,10 @@ loaded database in 0.000170959 s
 [1] printed results in 0.000011084 s
 ```
 
+## Benchmark
+
+There is a [benchmark](https://github.com/codemonger-io/flechasdb-benchmark) on more realistic data.
+
 ## API documentation
 
 https://codemonger-io.github.io/flechasdb/api/flechasdb/
