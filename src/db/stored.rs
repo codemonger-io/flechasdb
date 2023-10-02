@@ -52,6 +52,7 @@ pub struct Database<T, FS> {
     codebooks: RefCell<Option<Vec<BlockVectorSet<T>>>>,
     attributes_log_ids: Vec<String>,
     attributes_log_load_flags: RefCell<Vec<bool>>,
+    attribute_names: Vec<String>,
     attribute_table: RefCell<Option<AttributeTable>>,
 }
 
@@ -207,6 +208,12 @@ where
             |tbl| tbl.as_mut(),
         ).expect("attribute table must exist");
         for (i, entry) in attributes_log.entries.into_iter().enumerate() {
+            let attribute_name = self.attribute_names
+                .get(entry.name_index as usize)
+                .ok_or(Error::InvalidData(format!(
+                    "attribute name index out of bounds: {}",
+                    entry.name_index,
+                )))?;
             let vector_id = entry.vector_id
                 .into_option()
                 .ok_or(Error::InvalidData(format!(
@@ -225,7 +232,7 @@ where
                 .deserialize()?;
             match attribute_table.entry(vector_id) {
                 HashMapEntry::Occupied(slot) => {
-                    match slot.into_mut().entry(entry.name) {
+                    match slot.into_mut().entry(attribute_name.clone()) {
                         HashMapEntry::Occupied(slot) => {
                             *slot.into_mut() = value;
                         },
@@ -235,7 +242,9 @@ where
                     };
                 },
                 HashMapEntry::Vacant(slot) => {
-                    slot.insert(Attributes::from([(entry.name, value)]));
+                    slot.insert(Attributes::from([
+                        (attribute_name.clone(), value),
+                    ]));
                 },
             };
         }
@@ -706,6 +715,7 @@ mod f32impl {
                 attributes_log_ids: db.attributes_log_ids,
                 attributes_log_load_flags:
                     RefCell::new(vec![false; num_partitions]),
+                attribute_names: db.attribute_names,
                 attribute_table: RefCell::new(None),
             };
             Ok(db)
