@@ -16,6 +16,7 @@ default-run = "flechasdb"
 anyhow = "1.0"
 async-trait = "0.1"
 base64 = "0.21"
+flate2 = { version = "1.0", default-features = false, features = ["zlib-ng"] }
 futures = { version = "0.3", default-features = false, features = ["alloc", "std"] }
 pin-project-lite = "0.2"
 protobuf = "3.2"
