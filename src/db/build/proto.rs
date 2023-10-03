@@ -56,7 +56,7 @@ where
         attribute_names,
     };
     let db = db.serialize()?;
-    let mut f = fs.create_hashed_file()?;
+    let mut f = fs.create_hashed_file(true)?;
     write_message(&db, &mut f)?;
     f.persist(PROTOBUF_EXTENSION)?;
     Ok(())
@@ -92,7 +92,7 @@ where
     FS: FileSystem,
 {
     let partition = partition.serialize()?;
-    let mut f = fs.create_hashed_file_in("partitions")?;
+    let mut f = fs.create_hashed_file_in("partitions", true)?;
     write_message(&partition, &mut f)?;
     f.persist(PROTOBUF_EXTENSION)
 }
@@ -108,7 +108,7 @@ where
 {
     let partition_centroids: ProtosVectorSet =
         partitions.codebook.centroids.serialize()?;
-    let mut f = fs.create_hashed_file_in("partitions")?;
+    let mut f = fs.create_hashed_file_in("partitions", false)?;
     write_message(&partition_centroids, &mut f)?;
     f.persist(PROTOBUF_EXTENSION)
 }
@@ -140,7 +140,7 @@ where
     FS: FileSystem,
 {
     let codebook = codebook.centroids.serialize()?;
-    let mut f = fs.create_hashed_file_in("codebooks")?;
+    let mut f = fs.create_hashed_file_in("codebooks", false)?;
     write_message(&codebook, &mut f)?;
     f.persist(PROTOBUF_EXTENSION)
 }
@@ -197,7 +197,7 @@ where
                 }
             }
         }
-        let mut f = fs.create_hashed_file_in("attributes")?;
+        let mut f = fs.create_hashed_file_in("attributes", true)?;
         write_message(&attributes_log, &mut f)?;
         attributes_log_ids.push(f.persist(PROTOBUF_EXTENSION)?);
     }
