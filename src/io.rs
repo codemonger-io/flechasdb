@@ -4,10 +4,14 @@ use base64::{
     Engine,
     engine::general_purpose::{URL_SAFE_NO_PAD as base64_engine},
 };
+use flate2::Compression;
+use flate2::write::ZlibEncoder;
+use flate2::read::ZlibDecoder;
 use std::ffi::OsStr;
+use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use tempfile::NamedTempFile;
+use tempfile::{NamedTempFile, TempPath};
 
 use crate::error::Error;
 
@@ -19,18 +23,23 @@ pub trait FileSystem {
     type HashedFileIn: HashedFileIn;
 
     /// Creates a file whose name will be the hash of its contents.
-    fn create_hashed_file(&self) -> Result<Self::HashedFileOut, Error>;
+    fn create_hashed_file(
+        &self,
+        compress: bool,
+    ) -> Result<Self::HashedFileOut, Error>;
 
     /// Creates a hashed file in a given directory.
     fn create_hashed_file_in(
         &self,
         path: impl AsRef<str>,
+        compress: bool,
     ) -> Result<Self::HashedFileOut, Error>;
 
     /// Opens a file whose name is the hash of its contents.
     fn open_hashed_file(
         &self,
         path: impl AsRef<str>,
+        compressed: bool,
     ) -> Result<Self::HashedFileIn, Error>;
 }
 
@@ -76,22 +85,27 @@ impl FileSystem for LocalFileSystem {
     type HashedFileOut = LocalHashedFileOut;
     type HashedFileIn = LocalHashedFileIn;
 
-    fn create_hashed_file(&self) -> Result<Self::HashedFileOut, Error> {
-        LocalHashedFileOut::create(self.base_path.clone())
+    fn create_hashed_file(
+        &self,
+        compress: bool,
+    ) -> Result<Self::HashedFileOut, Error> {
+        LocalHashedFileOut::create(self.base_path.clone(), compress)
     }
 
     fn create_hashed_file_in(
         &self,
         path: impl AsRef<str>,
+        compress: bool,
     ) -> Result<Self::HashedFileOut, Error> {
-        LocalHashedFileOut::create(self.base_path.join(path.as_ref()))
+        LocalHashedFileOut::create(self.base_path.join(path.as_ref()), compress)
     }
 
     fn open_hashed_file(
         &self,
         path: impl AsRef<str>,
+        compressed: bool,
     ) -> Result<Self::HashedFileIn, Error> {
-        LocalHashedFileIn::open(self.base_path.join(path.as_ref()))
+        LocalHashedFileIn::open(self.base_path.join(path.as_ref()), compressed)
     }
 }
 
@@ -99,20 +113,73 @@ impl FileSystem for LocalFileSystem {
 ///
 /// Created as a temporary file and renamed to the hash of its contents.
 pub struct LocalHashedFileOut {
-    // Temporary file.
-    tempfile: NamedTempFile,
+    // Temporary file path.
+    temp_path: TempPath,
+    // Underlying writer.
+    writer: MaybeCompressedWrite<File>,
     // Persisted path.
     base_path: PathBuf,
     // Context to calculate an SHA-256 digest.
     context: ring::digest::Context,
 }
 
+// Maybe compressed `Write`.
+enum MaybeCompressedWrite<W>
+where
+    W: std::io::Write,
+{
+    Compressed(ZlibEncoder<W>),
+    Uncompressed(W),
+}
+
+impl<W> MaybeCompressedWrite<W>
+where
+    W: std::io::Write,
+{
+    fn finish(self) -> std::io::Result<W> {
+        match self {
+            MaybeCompressedWrite::Compressed(w) => w.finish(),
+            MaybeCompressedWrite::Uncompressed(w) => Ok(w),
+        }
+    }
+}
+
+impl<W> Write for MaybeCompressedWrite<W>
+where
+    W: std::io::Write,
+{
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match self {
+            MaybeCompressedWrite::Compressed(w) => w.write(buf),
+            MaybeCompressedWrite::Uncompressed(w) => w.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            MaybeCompressedWrite::Compressed(w) => w.flush(),
+            MaybeCompressedWrite::Uncompressed(w) => w.flush(),
+        }
+    }
+}
+
 impl LocalHashedFileOut {
     /// Creates a temporary file to be persisted under a given path.
-    fn create(base_path: PathBuf) -> Result<Self, Error> {
+    ///
+    /// The output is compressed with Zlib if `compress` is `true`.
+    fn create(base_path: PathBuf, compress: bool) -> Result<Self, Error> {
         let tempfile = NamedTempFile::new()?;
+        let (file, temp_path) = tempfile.into_parts();
+        let writer = if compress {
+            MaybeCompressedWrite::Compressed(
+                ZlibEncoder::new(file, Compression::default()),
+            )
+        } else {
+            MaybeCompressedWrite::Uncompressed(file)
+        };
         Ok(LocalHashedFileOut {
-            tempfile,
+            temp_path,
+            writer,
             base_path,
             context: ring::digest::Context::new(&ring::digest::SHA256),
         })
@@ -122,17 +189,18 @@ impl LocalHashedFileOut {
 impl Write for LocalHashedFileOut {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         self.context.update(buf);
-        self.tempfile.write(buf)
+        self.writer.write(buf)
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        self.tempfile.flush()
+        self.writer.flush()
     }
 }
 
 impl HashedFileOut for LocalHashedFileOut {
     fn persist(mut self, extension: impl AsRef<str>) -> Result<String, Error> {
-        self.flush()?;
+        self.writer.flush()?;
+        self.writer.finish()?;
         if !self.base_path.exists() {
             std::fs::create_dir_all(&self.base_path)?;
         }
@@ -141,25 +209,53 @@ impl HashedFileOut for LocalHashedFileOut {
         let path = self.base_path
             .join(&hash)
             .with_extension(extension.as_ref());
-        self.tempfile.persist(path)?;
+        self.temp_path.persist(path)?;
         Ok(hash)
     }
 }
 
 /// Readable file in the local file system.
 pub struct LocalHashedFileIn {
-    file: std::fs::File,
+    reader: MaybeCompressedRead<File>,
     path: PathBuf,
     // Context to calculate an SHA-256 digest.
     context: ring::digest::Context,
 }
 
+// Maybe compressed `Read`.
+enum MaybeCompressedRead<R>
+where
+    R: std::io::Read,
+{
+    Compressed(ZlibDecoder<R>),
+    Uncompressed(R),
+}
+
+impl<R> Read for MaybeCompressedRead<R>
+where
+    R: std::io::Read,
+{
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        match self {
+            MaybeCompressedRead::Compressed(r) => r.read(buf),
+            MaybeCompressedRead::Uncompressed(r) => r.read(buf),
+        }
+    }
+}
+
 impl LocalHashedFileIn {
     /// Opens a file whose name is the hash of its contents.
-    fn open(path: PathBuf) -> Result<Self, Error> {
+    ///
+    /// The file must be compressed with `zlib` if `comparessed` is `true`.
+    fn open(path: PathBuf, compressed: bool) -> Result<Self, Error> {
         let file = std::fs::File::open(&path)?;
+        let reader = if compressed {
+            MaybeCompressedRead::Compressed(ZlibDecoder::new(file))
+        } else {
+            MaybeCompressedRead::Uncompressed(file)
+        };
         Ok(LocalHashedFileIn {
-            file,
+            reader,
             path,
             context: ring::digest::Context::new(&ring::digest::SHA256),
         })
@@ -168,7 +264,7 @@ impl LocalHashedFileIn {
 
 impl Read for LocalHashedFileIn {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let n = self.file.read(buf)?;
+        let n = self.reader.read(buf)?;
         self.context.update(&buf[..n]);
         Ok(n)
     }
