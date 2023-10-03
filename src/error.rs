@@ -49,3 +49,9 @@ impl From<tempfile::PersistError> for Error {
         Self::IOError(e.error)
     }
 }
+
+impl From<tempfile::PathPersistError> for Error {
+    fn from(e: tempfile::PathPersistError) -> Self {
+        Self::IOError(std::io::Error::new(std::io::ErrorKind::Other, e))
+    }
+}
