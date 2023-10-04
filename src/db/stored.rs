@@ -187,14 +187,11 @@ where
             return Ok(());
         }
         let partition = self.get_partition(partition_index)?;
-        let mut f = self.fs.open_hashed_file(
-            format!(
-                "attributes/{}.{}",
-                self.attributes_log_ids[partition_index],
-                PROTOBUF_EXTENSION,
-            ),
-            true,
-        )?;
+        let mut f = self.fs.open_compressed_hashed_file(format!(
+            "attributes/{}.{}",
+            self.attributes_log_ids[partition_index],
+            PROTOBUF_EXTENSION,
+        ))?;
         let attributes_log: ProtosAttributesLog = read_message(&mut f)?;
         if attributes_log.partition_id != self.partition_ids[partition_index] {
             return Err(Error::InvalidData(format!(
@@ -663,7 +660,7 @@ mod f32impl {
         where
             P: AsRef<str>,
         {
-            let mut f = fs.open_hashed_file(path, true)?;
+            let mut f = fs.open_compressed_hashed_file(path)?;
             let db: ProtosDatabase = read_message(&mut f)?;
             f.verify()?;
             let vector_size = db.vector_size as usize;
@@ -732,14 +729,11 @@ mod f32impl {
         fn load_partition_centroids(
             &self,
         ) -> Result<BlockVectorSet<f32>, Error> {
-            let mut f = self.fs.open_hashed_file(
-                format!(
-                    "partitions/{}.{}",
-                    self.partition_centroids_id,
-                    PROTOBUF_EXTENSION,
-                ),
-                false,
-            )?;
+            let mut f = self.fs.open_hashed_file(format!(
+                "partitions/{}.{}",
+                self.partition_centroids_id,
+                PROTOBUF_EXTENSION,
+            ))?;
             let partition_centroids: ProtosVectorSet = read_message(&mut f)?;
             let partition_centroids: BlockVectorSet<f32> =
                 partition_centroids.deserialize()?;
@@ -786,14 +780,11 @@ mod f32impl {
                     self.num_divisions(),
                 )));
             }
-            let mut f = self.fs.open_hashed_file(
-                format!(
-                    "codebooks/{}.{}",
-                    self.get_codebook_id(index).unwrap(),
-                    PROTOBUF_EXTENSION,
-                ),
-                false,
-            )?;
+            let mut f = self.fs.open_hashed_file(format!(
+                "codebooks/{}.{}",
+                self.get_codebook_id(index).unwrap(),
+                PROTOBUF_EXTENSION,
+            ))?;
             let codebook: ProtosVectorSet = read_message(&mut f)?;
             f.verify()?;
             let codebook: BlockVectorSet<f32> = codebook.deserialize()?;
@@ -841,14 +832,11 @@ mod f32impl {
                     self.num_partitions,
                 )));
             }
-            let mut f = self.fs.open_hashed_file(
-                format!(
-                    "partitions/{}.{}",
-                    self.get_partition_id(index).unwrap(),
-                    PROTOBUF_EXTENSION,
-                ),
-                true,
-            )?;
+            let mut f = self.fs.open_compressed_hashed_file(format!(
+                "partitions/{}.{}",
+                self.get_partition_id(index).unwrap(),
+                PROTOBUF_EXTENSION,
+            ))?;
             let partition: ProtosPartition = read_message(&mut f)?;
             f.verify()?;
             let vector_size = partition.vector_size as usize;
