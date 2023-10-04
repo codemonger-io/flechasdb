@@ -5,8 +5,10 @@ use base64::engine::{
     Engine,
     general_purpose::URL_SAFE_NO_PAD as url_safe_base_64,
 };
+use core::mem::MaybeUninit;
 use core::pin::Pin;
 use core::task::Poll;
+use flate2::{Decompress, FlushDecompress};
 use pin_project_lite::pin_project;
 use std::path::{Path, PathBuf};
 use tokio::fs::File;
@@ -135,6 +137,205 @@ impl AsyncRead for LocalHashedFileIn {
             },
             Poll::Pending => Poll::Pending,
             Poll::Ready(err) => Poll::Ready(err),
+        }
+    }
+}
+
+const INPUT_BUFFER_SIZE: usize = 1024;
+const OUTPUT_BUFFER_SIZE: usize = 2048;
+
+pin_project! {
+    /// Zlib decoder that reads bytes from [`AsyncRead`](https://docs.rs/tokio/1.32.0/tokio/io/trait.AsyncRead.html).
+    pub struct AsyncZlibDecoder<R> {
+        #[pin]
+        reader: R,
+        reader_finished: bool,
+        decoder: Decompress,
+        decoder_finished: bool,
+        input_buf: [MaybeUninit<u8>; INPUT_BUFFER_SIZE],
+        input_pos: usize,
+        output_buf: Vec<u8>,
+        output_pos: usize,
+    }
+}
+
+impl<R> AsyncZlibDecoder<R> {
+    fn new(reader: R) -> Self {
+        Self {
+            reader,
+            reader_finished: false,
+            decoder: Decompress::new(true),
+            decoder_finished: false,
+            input_buf: unsafe { MaybeUninit::uninit().assume_init() },
+            input_pos: 0,
+            output_buf: Vec::with_capacity(OUTPUT_BUFFER_SIZE),
+            output_pos: 0,
+        }
+    }
+}
+
+impl<R> AsyncRead for AsyncZlibDecoder<R>
+where
+    R: AsyncRead,
+{
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut core::task::Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        let mut this = self.project();
+        let initial_len = buf.filled().len();
+        let mut input_buf = ReadBuf::uninit(this.input_buf);
+        unsafe { input_buf.assume_init(*this.input_pos); }
+        input_buf.set_filled(*this.input_pos);
+        let mut had_buf_error = false;
+        loop {
+            if *this.input_pos < input_buf.filled().len()
+                && this.output_buf.len() < this.output_buf.capacity()
+            {
+                // decompresses the remaining input
+                // unless the output buffer is full
+                let last_total_in = this.decoder.total_in();
+                let input = &input_buf.filled()[*this.input_pos..];
+                match this.decoder.decompress_vec(
+                    input,
+                    this.output_buf,
+                    if *this.reader_finished {
+                        FlushDecompress::Finish
+                    } else {
+                        FlushDecompress::None
+                    },
+                ) {
+                    Ok(flate2::Status::Ok) => {
+                        let num_read = this.decoder.total_in() - last_total_in;
+                        *this.input_pos += num_read as usize;
+                        if *this.input_pos == input_buf.filled().len() {
+                            input_buf.clear();
+                            *this.input_pos = 0;
+                        }
+                        had_buf_error = false;
+                    },
+                    Ok(flate2::Status::BufError) => {
+                        if had_buf_error {
+                            return Poll::Ready(Err(std::io::Error::new(
+                                std::io::ErrorKind::Other,
+                                Error::InvalidContext(format!(
+                                    "got persisted decoder buffer error",
+                                )),
+                            )));
+                        }
+                        had_buf_error = true;
+                    },
+                    Ok(flate2::Status::StreamEnd) => {
+                        *this.decoder_finished = true;
+                        let num_read = this.decoder.total_in() - last_total_in;
+                        *this.input_pos += num_read as usize;
+                        if *this.input_pos == input_buf.filled().len() {
+                            input_buf.clear();
+                            *this.input_pos = 0;
+                        } else {
+                            return Poll::Ready(Err(std::io::Error::new(
+                                std::io::ErrorKind::Other,
+                                Error::InvalidData(format!(
+                                    "extra bytes after compressed block",
+                                )),
+                            )));
+                        }
+                        had_buf_error = false;
+                    },
+                    Err(err) => {
+                        return Poll::Ready(Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            err,
+                        )));
+                    },
+                };
+            }
+            if *this.output_pos < this.output_buf.len() {
+                // emits the buffered output if any bytes are remaining
+                let num_emit = core::cmp::min(
+                    this.output_buf.len() - *this.output_pos,
+                    buf.remaining(),
+                );
+                let new_pos = *this.output_pos + num_emit;
+                buf.put_slice(&this.output_buf[*this.output_pos..new_pos]);
+                if new_pos == this.output_buf.len() {
+                    this.output_buf.clear();
+                    *this.output_pos = 0;
+                } else {
+                    *this.output_pos = new_pos;
+                }
+                if buf.remaining() == 0 {
+                    return Poll::Ready(Ok(()));
+                }
+            } else if *this.decoder_finished && *this.reader_finished {
+                return Poll::Ready(Ok(()));
+            }
+            if !*this.reader_finished && input_buf.remaining() > 0 {
+                // reads more bytes from the reader
+                // unless the reader has finished, or input_buf is full
+                let last_len = input_buf.filled().len();
+                match this.reader
+                    .as_mut()
+                    .poll_read(cx, &mut input_buf)
+                {
+                    Poll::Ready(Ok(_)) => {
+                        if input_buf.filled().len() == last_len {
+                            *this.reader_finished = true;
+                        } else if *this.decoder_finished {
+                            return Poll::Ready(Err(std::io::Error::new(
+                                std::io::ErrorKind::Other,
+                                Error::InvalidData(format!(
+                                    "extra bytes after compressed block",
+                                )),
+                            )));
+                        }
+                    },
+                    Poll::Pending => {
+                        if buf.filled().len() > initial_len {
+                            return Poll::Ready(Ok(()));
+                        } else {
+                            return Poll::Pending;
+                        }
+                    },
+                    Poll::Ready(err) => return Poll::Ready(err),
+                }
+            }
+        }
+    }
+}
+
+pin_project! {
+    /// Maybe compressed [`AsyncRead`](https://docs.rs/tokio/1.32.0/tokio/io/trait.AsyncRead.html).
+    #[project = MaybeCompressedReadProj]
+    pub enum MaybeCompressedRead<R> {
+        /// Zlib-compressed data.
+        Compressed {
+            #[pin]
+            decoder: AsyncZlibDecoder<R>,
+        },
+        /// Uncompressed data.
+        Uncompressed{
+            #[pin]
+            reader: R,
+        },
+    }
+}
+
+impl<R> AsyncRead for MaybeCompressedRead<R>
+where
+    R: AsyncRead,
+{
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut core::task::Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        match self.project() {
+            MaybeCompressedReadProj::Compressed { decoder } =>
+                decoder.poll_read(cx, buf),
+            MaybeCompressedReadProj::Uncompressed { reader } =>
+                reader.poll_read(cx, buf),
         }
     }
 }
