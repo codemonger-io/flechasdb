@@ -4,6 +4,31 @@ A lightweight vector database in your hands.
 
 `flechasdb` package is the core library of the [FlechasDB system](#flechasdb-system) written in [Rust](https://www.rust-lang.org).
 
+**Table of Contents**
+
+<!-- TOC -->
+
+- [flechasdb](#flechasdb)
+    - [FlechasDB system](#flechasdb-system)
+        - [Core features and progress](#core-features-and-progress)
+    - [Installing flechasdb](#installing-flechasdb)
+    - [Using flechasdb](#using-flechasdb)
+        - [Building a vector database](#building-a-vector-database)
+        - [Loading and querying vector database](#loading-and-querying-vector-database)
+        - [Loading and querying vector database async](#loading-and-querying-vector-database-async)
+    - [Benchmark](#benchmark)
+    - [API documentation](#api-documentation)
+    - [Algorithms and structures](#algorithms-and-structures)
+        - [IndexIVFPQ](#indexivfpq)
+        - [k-means++](#k-means)
+        - [Database structure](#database-structure)
+    - [Development](#development)
+        - [Building the library](#building-the-library)
+        - [Generating documentation](#generating-documentation)
+    - [Similar projects](#similar-projects)
+
+<!-- /TOC -->
+
 ## FlechasDB system
 
 The FlechasDB system is aiming to be a [vector database](https://www.pinecone.io/learn/vector-database/) that perfectly fits in [serverless](https://en.wikipedia.org/wiki/Serverless_computing) environments.
@@ -307,9 +332,11 @@ https://codemonger-io.github.io/flechasdb/api/flechasdb/
 
 ### Database structure
 
+TBD
+
 ## Development
 
-### Building the libraryo
+### Building the library
 
 ```sh
 cargo build
