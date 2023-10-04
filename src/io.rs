@@ -8,7 +8,6 @@ use flate2::Compression;
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 use std::ffi::OsStr;
-use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use tempfile::NamedTempFile;
@@ -244,7 +243,7 @@ impl Write for LocalHashedFileOut {
 
 impl HashedFileOut for LocalHashedFileOut {
     fn persist(mut self, extension: impl AsRef<str>) -> Result<String, Error> {
-        self.tempfile.flush()?;
+        self.flush()?;
         if !self.base_path.exists() {
             std::fs::create_dir_all(&self.base_path)?;
         }
@@ -260,7 +259,7 @@ impl HashedFileOut for LocalHashedFileOut {
 
 /// Readable file in the local file system.
 pub struct LocalHashedFileIn {
-    file: File,
+    file: std::fs::File,
     path: PathBuf,
     // Context to calculate an SHA-256 digest.
     context: ring::digest::Context,
@@ -268,8 +267,6 @@ pub struct LocalHashedFileIn {
 
 impl LocalHashedFileIn {
     /// Opens a file whose name is the hash of its contents.
-    ///
-    /// The file must be compressed with `zlib` if `comparessed` is `true`.
     fn open(path: PathBuf) -> Result<Self, Error> {
         let file = std::fs::File::open(&path)?;
         Ok(LocalHashedFileIn {
