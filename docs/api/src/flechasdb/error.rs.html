@@ -49,6 +49,12 @@
 <a href="#49" id="49">49</a>
 <a href="#50" id="50">50</a>
 <a href="#51" id="51">51</a>
+<a href="#52" id="52">52</a>
+<a href="#53" id="53">53</a>
+<a href="#54" id="54">54</a>
+<a href="#55" id="55">55</a>
+<a href="#56" id="56">56</a>
+<a href="#57" id="57">57</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Common error type for flechasdb.
 
 /// Common error type for flechasdb.
@@ -98,6 +104,12 @@
 <span class="kw">impl </span>From&lt;tempfile::PersistError&gt; <span class="kw">for </span>Error {
     <span class="kw">fn </span>from(e: tempfile::PersistError) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::IOError(e.error)
+    }
+}
+
+<span class="kw">impl </span>From&lt;tempfile::PathPersistError&gt; <span class="kw">for </span>Error {
+    <span class="kw">fn </span>from(e: tempfile::PathPersistError) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::IOError(std::io::Error::new(std::io::ErrorKind::Other, e))
     }
 }
 </code></pre></div></section></main></body></html>

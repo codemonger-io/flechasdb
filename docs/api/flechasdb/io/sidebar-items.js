@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["LocalFileSystem","LocalHashedFileIn","LocalHashedFileOut"],"trait":["FileSystem","HashedFileIn","HashedFileOut"]};
+window.SIDEBAR_ITEMS = {"struct":["CompressedHashedFileIn","CompressedHashedFileOut","LocalFileSystem","LocalHashedFileIn","LocalHashedFileOut"],"trait":["FileSystem","HashedFileIn","HashedFileOut"]};

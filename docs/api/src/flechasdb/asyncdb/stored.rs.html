@@ -829,7 +829,7 @@
         <span class="self">self</span>.attributes_log_load_flags[index].get_or_try_init(|| <span class="kw">async move </span>{
             <span class="kw">let </span>partition = <span class="self">self</span>.load_partition(index).<span class="kw">await</span><span class="question-mark">?</span>;
             <span class="kw">let </span>id = <span class="kw-2">&amp;</span><span class="self">self</span>.attributes_log_ids[index];
-            <span class="kw">let </span><span class="kw-2">mut </span>f = <span class="self">self</span>.fs.open_hashed_file(<span class="macro">format!</span>(
+            <span class="kw">let </span><span class="kw-2">mut </span>f = <span class="self">self</span>.fs.open_compressed_hashed_file(<span class="macro">format!</span>(
                 <span class="string">&quot;attributes/{}.{}&quot;</span>,
                 id,
                 PROTOBUF_EXTENSION,
@@ -914,7 +914,7 @@
         <span class="kw">where
             </span>P: Into&lt;String&gt; + Send,
         {
-            <span class="kw">let </span><span class="kw-2">mut </span>f = fs.open_hashed_file(path).<span class="kw">await</span><span class="question-mark">?</span>;
+            <span class="kw">let </span><span class="kw-2">mut </span>f = fs.open_compressed_hashed_file(path).<span class="kw">await</span><span class="question-mark">?</span>;
             <span class="kw">let </span>db: ProtosDatabase = read_message(<span class="kw-2">&amp;mut </span>f).<span class="kw">await</span><span class="question-mark">?</span>;
             f.verify().<span class="kw">await</span><span class="question-mark">?</span>;
             <span class="kw">let </span>vector_size = db.vector_size <span class="kw">as </span>usize;
@@ -1060,7 +1060,7 @@
             }
             <span class="self">self</span>.partitions[index].get_or_try_init(|| <span class="kw">async move </span>{
                 <span class="kw">let </span>id = <span class="kw-2">&amp;</span><span class="self">self</span>.partition_ids[index];
-                <span class="kw">let </span><span class="kw-2">mut </span>f = <span class="self">self</span>.fs.open_hashed_file(<span class="macro">format!</span>(
+                <span class="kw">let </span><span class="kw-2">mut </span>f = <span class="self">self</span>.fs.open_compressed_hashed_file(<span class="macro">format!</span>(
                     <span class="string">&quot;partitions/{}.{}&quot;</span>,
                     id,
                     PROTOBUF_EXTENSION,
