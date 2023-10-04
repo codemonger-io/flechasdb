@@ -5,7 +5,7 @@ use base64::engine::{
     Engine,
     general_purpose::URL_SAFE_NO_PAD as url_safe_base_64,
 };
-use core::mem::MaybeUninit;
+use core::mem::{MaybeUninit, transmute};
 use core::pin::Pin;
 use core::task::Poll;
 use flate2::{Decompress, FlushDecompress};
@@ -156,8 +156,7 @@ impl AsyncRead for LocalHashedFileIn {
     }
 }
 
-const INPUT_BUFFER_SIZE: usize = 1024;
-const OUTPUT_BUFFER_SIZE: usize = 2048;
+const INPUT_BUFFER_SIZE: usize = 4096;
 
 pin_project! {
     /// Zlib decoder that reads bytes from [`AsyncRead`](https://docs.rs/tokio/1.32.0/tokio/io/trait.AsyncRead.html).
@@ -169,8 +168,6 @@ pin_project! {
         decoder_finished: bool,
         input_buf: [MaybeUninit<u8>; INPUT_BUFFER_SIZE],
         input_pos: usize,
-        output_buf: Vec<u8>,
-        output_pos: usize,
     }
 }
 
@@ -183,8 +180,6 @@ impl<R> AsyncZlibDecoder<R> {
             decoder_finished: false,
             input_buf: unsafe { MaybeUninit::uninit().assume_init() },
             input_pos: 0,
-            output_buf: Vec::with_capacity(OUTPUT_BUFFER_SIZE),
-            output_pos: 0,
         }
     }
 }
@@ -198,6 +193,13 @@ where
         cx: &mut core::task::Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<std::io::Result<()>> {
+        macro_rules! assume_advance {
+            ($buf:ident, $amount:expr) => {
+                unsafe { $buf.assume_init($buf.filled().len() + $amount); }
+                buf.advance($amount);
+            };
+        }
+
         let mut this = self.project();
         let initial_len = buf.filled().len();
         let mut input_buf = ReadBuf::uninit(this.input_buf);
@@ -206,15 +208,15 @@ where
         let mut had_buf_error = false;
         loop {
             if *this.input_pos < input_buf.filled().len()
-                && this.output_buf.len() < this.output_buf.capacity()
+                && buf.remaining() > 0
             {
-                // decompresses the remaining input
-                // unless the output buffer is full
+                // decompresses the remaining input unless `buf` is full
                 let last_total_in = this.decoder.total_in();
+                let last_total_out = this.decoder.total_out();
                 let input = &input_buf.filled()[*this.input_pos..];
-                match this.decoder.decompress_vec(
+                match this.decoder.decompress(
                     input,
-                    this.output_buf,
+                    unsafe { transmute(buf.unfilled_mut()) },
                     if *this.reader_finished {
                         FlushDecompress::Finish
                     } else {
@@ -222,6 +224,9 @@ where
                     },
                 ) {
                     Ok(flate2::Status::Ok) => {
+                        let num_written =
+                            this.decoder.total_out() - last_total_out;
+                        assume_advance!(buf, num_written as usize);
                         let num_read = this.decoder.total_in() - last_total_in;
                         *this.input_pos += num_read as usize;
                         if *this.input_pos == input_buf.filled().len() {
@@ -243,6 +248,9 @@ where
                     },
                     Ok(flate2::Status::StreamEnd) => {
                         *this.decoder_finished = true;
+                        let num_written =
+                            this.decoder.total_out() - last_total_out;
+                        assume_advance!(buf, num_written as usize);
                         let num_read = this.decoder.total_in() - last_total_in;
                         *this.input_pos += num_read as usize;
                         if *this.input_pos == input_buf.filled().len() {
@@ -265,26 +273,6 @@ where
                         )));
                     },
                 };
-            }
-            if *this.output_pos < this.output_buf.len() {
-                // emits the buffered output if any bytes are remaining
-                let num_emit = core::cmp::min(
-                    this.output_buf.len() - *this.output_pos,
-                    buf.remaining(),
-                );
-                let new_pos = *this.output_pos + num_emit;
-                buf.put_slice(&this.output_buf[*this.output_pos..new_pos]);
-                if new_pos == this.output_buf.len() {
-                    this.output_buf.clear();
-                    *this.output_pos = 0;
-                } else {
-                    *this.output_pos = new_pos;
-                }
-                if buf.remaining() == 0 {
-                    return Poll::Ready(Ok(()));
-                }
-            } else if *this.decoder_finished && *this.reader_finished {
-                return Poll::Ready(Ok(()));
             }
             if !*this.reader_finished && input_buf.remaining() > 0 {
                 // reads more bytes from the reader
@@ -315,6 +303,9 @@ where
                     },
                     Poll::Ready(err) => return Poll::Ready(err),
                 }
+            }
+            if *this.decoder_finished && *this.reader_finished {
+                return Poll::Ready(Ok(()));
             }
         }
     }
