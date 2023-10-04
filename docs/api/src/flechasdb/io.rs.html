@@ -298,11 +298,6 @@
 <a href="#298" id="298">298</a>
 <a href="#299" id="299">299</a>
 <a href="#300" id="300">300</a>
-<a href="#301" id="301">301</a>
-<a href="#302" id="302">302</a>
-<a href="#303" id="303">303</a>
-<a href="#304" id="304">304</a>
-<a href="#305" id="305">305</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! IO utilities.
 
 </span><span class="kw">use </span>base64::{
@@ -313,7 +308,6 @@
 <span class="kw">use </span>flate2::read::ZlibDecoder;
 <span class="kw">use </span>flate2::write::ZlibEncoder;
 <span class="kw">use </span>std::ffi::OsStr;
-<span class="kw">use </span>std::fs::File;
 <span class="kw">use </span>std::io::{Read, Write};
 <span class="kw">use </span>std::path::{Path, PathBuf};
 <span class="kw">use </span>tempfile::NamedTempFile;
@@ -514,7 +508,7 @@
 ///
 /// Created as a temporary file and renamed to the hash of its contents.
 </span><span class="kw">pub struct </span>LocalHashedFileOut {
-    <span class="comment">// Temporary file as a writer.
+    <span class="comment">// Temporary file.
     </span>tempfile: NamedTempFile,
     <span class="comment">// Persisted path.
     </span>base_path: PathBuf,
@@ -524,8 +518,6 @@
 
 <span class="kw">impl </span>LocalHashedFileOut {
     <span class="doccomment">/// Creates a temporary file to be persisted under a given path.
-    ///
-    /// The output is compressed with Zlib if `compress` is `true`.
     </span><span class="kw">fn </span>create(base_path: PathBuf) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, Error&gt; {
         <span class="kw">let </span>tempfile = NamedTempFile::new()<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(LocalHashedFileOut {
@@ -549,7 +541,7 @@
 
 <span class="kw">impl </span>HashedFileOut <span class="kw">for </span>LocalHashedFileOut {
     <span class="kw">fn </span>persist(<span class="kw-2">mut </span><span class="self">self</span>, extension: <span class="kw">impl </span>AsRef&lt;str&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;String, Error&gt; {
-        <span class="self">self</span>.tempfile.flush()<span class="question-mark">?</span>;
+        <span class="self">self</span>.flush()<span class="question-mark">?</span>;
         <span class="kw">if </span>!<span class="self">self</span>.base_path.exists() {
             std::fs::create_dir_all(<span class="kw-2">&amp;</span><span class="self">self</span>.base_path)<span class="question-mark">?</span>;
         }
@@ -565,7 +557,7 @@
 
 <span class="doccomment">/// Readable file in the local file system.
 </span><span class="kw">pub struct </span>LocalHashedFileIn {
-    file: File,
+    file: std::fs::File,
     path: PathBuf,
     <span class="comment">// Context to calculate an SHA-256 digest.
     </span>context: ring::digest::Context,
@@ -573,8 +565,6 @@
 
 <span class="kw">impl </span>LocalHashedFileIn {
     <span class="doccomment">/// Opens a file whose name is the hash of its contents.
-    ///
-    /// The file must be compressed with `zlib` if `comparessed` is `true`.
     </span><span class="kw">fn </span>open(path: PathBuf) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, Error&gt; {
         <span class="kw">let </span>file = std::fs::File::open(<span class="kw-2">&amp;</span>path)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(LocalHashedFileIn {
