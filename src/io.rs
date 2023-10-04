@@ -4,9 +4,9 @@ use base64::{
     Engine,
     engine::general_purpose::{URL_SAFE_NO_PAD as base64_engine},
 };
-use flate2::Compression;
-use flate2::write::ZlibEncoder;
-use flate2::read::ZlibDecoder;
+pub use flate2::Compression;
+pub use flate2::read::ZlibDecoder;
+pub use flate2::write::ZlibEncoder;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -123,27 +123,6 @@ pub struct LocalHashedFileOut {
     context: ring::digest::Context,
 }
 
-// Maybe compressed `Write`.
-enum MaybeCompressedWrite<W>
-where
-    W: std::io::Write,
-{
-    Compressed(ZlibEncoder<W>),
-    Uncompressed(W),
-}
-
-impl<W> MaybeCompressedWrite<W>
-where
-    W: std::io::Write,
-{
-    fn finish(self) -> std::io::Result<W> {
-        match self {
-            MaybeCompressedWrite::Compressed(w) => w.finish(),
-            MaybeCompressedWrite::Uncompressed(w) => Ok(w),
-        }
-    }
-}
-
 impl<W> Write for MaybeCompressedWrite<W>
 where
     W: std::io::Write,
@@ -186,17 +165,6 @@ impl LocalHashedFileOut {
     }
 }
 
-impl Write for LocalHashedFileOut {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.context.update(buf);
-        self.writer.write(buf)
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        self.writer.flush()
-    }
-}
-
 impl HashedFileOut for LocalHashedFileOut {
     fn persist(mut self, extension: impl AsRef<str>) -> Result<String, Error> {
         self.writer.flush()?;
@@ -220,27 +188,6 @@ pub struct LocalHashedFileIn {
     path: PathBuf,
     // Context to calculate an SHA-256 digest.
     context: ring::digest::Context,
-}
-
-// Maybe compressed `Read`.
-enum MaybeCompressedRead<R>
-where
-    R: std::io::Read,
-{
-    Compressed(ZlibDecoder<R>),
-    Uncompressed(R),
-}
-
-impl<R> Read for MaybeCompressedRead<R>
-where
-    R: std::io::Read,
-{
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        match self {
-            MaybeCompressedRead::Compressed(r) => r.read(buf),
-            MaybeCompressedRead::Uncompressed(r) => r.read(buf),
-        }
-    }
 }
 
 impl LocalHashedFileIn {
@@ -282,6 +229,66 @@ impl HashedFileIn for LocalHashedFileIn {
                 self.path.file_stem(),
                 hash,
             )))
+        }
+    }
+}
+
+/// Maybe compressed [`Write`].
+pub enum MaybeCompressedWrite<W>
+where
+    W: std::io::Write,
+{
+    /// Zlib-compressed writer.
+    Compressed(ZlibEncoder<W>),
+    /// Raw writer.
+    Uncompressed(W),
+}
+
+impl<W> MaybeCompressedWrite<W>
+where
+    W: std::io::Write,
+{
+    /// Finishes the compression block.
+    ///
+    /// Does nothing if the writer is not compressed.
+    pub fn finish(self) -> std::io::Result<W> {
+        match self {
+            MaybeCompressedWrite::Compressed(w) => w.finish(),
+            MaybeCompressedWrite::Uncompressed(w) => Ok(w),
+        }
+    }
+}
+
+impl Write for LocalHashedFileOut {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.context.update(buf);
+        self.writer.write(buf)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.writer.flush()
+    }
+}
+
+/// Maybe compressed [`Read`].
+pub enum MaybeCompressedRead<R>
+where
+    R: std::io::Read,
+{
+    /// Zlib-compressed reader.
+    Compressed(ZlibDecoder<R>),
+    /// Raw reader.
+    Uncompressed(R),
+}
+
+impl<R> Read for MaybeCompressedRead<R>
+where
+    R: std::io::Read,
+{
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        match self {
+            MaybeCompressedRead::Compressed(r) => r.read(buf),
+            MaybeCompressedRead::Uncompressed(r) => r.read(buf),
         }
     }
 }

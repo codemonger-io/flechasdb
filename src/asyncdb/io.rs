@@ -156,7 +156,8 @@ impl AsyncRead for LocalHashedFileIn {
     }
 }
 
-const INPUT_BUFFER_SIZE: usize = 4096;
+// Size of `input_buf` of `AsyncZlibDecoder`.
+const INPUT_BUFFER_SIZE: usize = 1024;
 
 pin_project! {
     /// Zlib decoder that reads bytes from [`AsyncRead`](https://docs.rs/tokio/1.32.0/tokio/io/trait.AsyncRead.html).
@@ -172,7 +173,8 @@ pin_project! {
 }
 
 impl<R> AsyncZlibDecoder<R> {
-    fn new(reader: R) -> Self {
+    /// Decompresses bytes from a given reader.
+    pub fn new(reader: R) -> Self {
         Self {
             reader,
             reader_finished: false,
