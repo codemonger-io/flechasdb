@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["LocalFileSystem","LocalHashedFileIn"],"trait":["FileSystem","HashedFileIn"]};
+window.SIDEBAR_ITEMS = {"struct":["AsyncZlibDecoder","CompressedHashedFileIn","LocalFileSystem","LocalHashedFileIn"],"trait":["FileSystem","HashedFileIn"]};

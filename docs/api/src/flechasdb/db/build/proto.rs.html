@@ -323,7 +323,7 @@
         attribute_names,
     };
     <span class="kw">let </span>db = db.serialize()<span class="question-mark">?</span>;
-    <span class="kw">let </span><span class="kw-2">mut </span>f = fs.create_hashed_file()<span class="question-mark">?</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>f = fs.create_compressed_hashed_file()<span class="question-mark">?</span>;
     write_message(<span class="kw-2">&amp;</span>db, <span class="kw-2">&amp;mut </span>f)<span class="question-mark">?</span>;
     f.persist(PROTOBUF_EXTENSION)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())
@@ -359,7 +359,7 @@
     FS: FileSystem,
 {
     <span class="kw">let </span>partition = partition.serialize()<span class="question-mark">?</span>;
-    <span class="kw">let </span><span class="kw-2">mut </span>f = fs.create_hashed_file_in(<span class="string">&quot;partitions&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>f = fs.create_compressed_hashed_file_in(<span class="string">&quot;partitions&quot;</span>)<span class="question-mark">?</span>;
     write_message(<span class="kw-2">&amp;</span>partition, <span class="kw-2">&amp;mut </span>f)<span class="question-mark">?</span>;
     f.persist(PROTOBUF_EXTENSION)
 }
@@ -464,7 +464,7 @@
                 }
             }
         }
-        <span class="kw">let </span><span class="kw-2">mut </span>f = fs.create_hashed_file_in(<span class="string">&quot;attributes&quot;</span>)<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>f = fs.create_compressed_hashed_file_in(<span class="string">&quot;attributes&quot;</span>)<span class="question-mark">?</span>;
         write_message(<span class="kw-2">&amp;</span>attributes_log, <span class="kw-2">&amp;mut </span>f)<span class="question-mark">?</span>;
         attributes_log_ids.push(f.persist(PROTOBUF_EXTENSION)<span class="question-mark">?</span>);
     }

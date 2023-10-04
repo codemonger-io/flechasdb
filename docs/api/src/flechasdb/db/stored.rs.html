@@ -1069,7 +1069,7 @@
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
         <span class="kw">let </span>partition = <span class="self">self</span>.get_partition(partition_index)<span class="question-mark">?</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>f = <span class="self">self</span>.fs.open_hashed_file(<span class="macro">format!</span>(
+        <span class="kw">let </span><span class="kw-2">mut </span>f = <span class="self">self</span>.fs.open_compressed_hashed_file(<span class="macro">format!</span>(
             <span class="string">&quot;attributes/{}.{}&quot;</span>,
             <span class="self">self</span>.attributes_log_ids[partition_index],
             PROTOBUF_EXTENSION,
@@ -1542,7 +1542,7 @@
         <span class="kw">where
             </span>P: AsRef&lt;str&gt;,
         {
-            <span class="kw">let </span><span class="kw-2">mut </span>f = fs.open_hashed_file(path)<span class="question-mark">?</span>;
+            <span class="kw">let </span><span class="kw-2">mut </span>f = fs.open_compressed_hashed_file(path)<span class="question-mark">?</span>;
             <span class="kw">let </span>db: ProtosDatabase = read_message(<span class="kw-2">&amp;mut </span>f)<span class="question-mark">?</span>;
             f.verify()<span class="question-mark">?</span>;
             <span class="kw">let </span>vector_size = db.vector_size <span class="kw">as </span>usize;
@@ -1714,7 +1714,7 @@
                     <span class="self">self</span>.num_partitions,
                 )));
             }
-            <span class="kw">let </span><span class="kw-2">mut </span>f = <span class="self">self</span>.fs.open_hashed_file(<span class="macro">format!</span>(
+            <span class="kw">let </span><span class="kw-2">mut </span>f = <span class="self">self</span>.fs.open_compressed_hashed_file(<span class="macro">format!</span>(
                 <span class="string">&quot;partitions/{}.{}&quot;</span>,
                 <span class="self">self</span>.get_partition_id(index).unwrap(),
                 PROTOBUF_EXTENSION,
