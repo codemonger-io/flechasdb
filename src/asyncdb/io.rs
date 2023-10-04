@@ -26,8 +26,16 @@ pub trait FileSystem {
     async fn open_hashed_file(
         &self,
         path: impl Into<String> + Send,
-        compressed: bool,
     ) -> Result<Self::HashedFileIn, Error>;
+
+    /// Opens a compressed file whose contents can be verified with the hash.
+    async fn open_compressed_hashed_file(
+        &self,
+        path: impl Into<String> + Send,
+    ) -> Result<CompressedHashedFileIn<Self::HashedFileIn>, Error> {
+        let file = self.open_hashed_file(path).await?;
+        Ok(CompressedHashedFileIn::new(file))
+    }
 }
 
 /// File whose contents can be verified with the hash.
@@ -44,6 +52,52 @@ pub trait HashedFileIn: AsyncRead + Send + Unpin {
     /// Fails with `Error::VerificationFailure` if the contents cannot be
     /// verified.
     async fn verify(self) -> Result<(), Error>;
+}
+
+pin_project! {
+    /// Compressed file whose contents can be verified with the hash.
+    pub struct CompressedHashedFileIn<R>
+    where
+        R: AsyncRead,
+    {
+        #[pin]
+        decoder: AsyncZlibDecoder<R>,
+    }
+}
+
+impl<R> CompressedHashedFileIn<R>
+where
+    R: AsyncRead,
+{
+    /// Reads compressed data from a given [`AsyncRead`](https://docs.rs/tokio/1.32.0/tokio/io/trait.AsyncRead.html).
+    pub fn new(r: R) -> Self {
+        Self {
+            decoder: AsyncZlibDecoder::new(r)
+        }
+    }
+}
+
+impl<R> AsyncRead for CompressedHashedFileIn<R>
+where
+    R: AsyncRead,
+{
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        self.project().decoder.poll_read(cx, buf)
+    }
+}
+
+#[async_trait]
+impl<R> HashedFileIn for CompressedHashedFileIn<R>
+where
+    R: HashedFileIn,
+{
+    async fn verify(self) -> Result<(), Error> {
+        self.decoder.into_inner().verify().await
+    }
 }
 
 /// Asynchronous local file system.
@@ -67,12 +121,8 @@ impl FileSystem for LocalFileSystem {
     async fn open_hashed_file(
         &self,
         path: impl Into<String> + Send,
-        compressed: bool,
     ) -> Result<Self::HashedFileIn, Error> {
-        LocalHashedFileIn::open(
-            self.base_path.join(path.into()),
-            compressed,
-        ).await
+        LocalHashedFileIn::open(self.base_path.join(path.into())).await
     }
 }
 
@@ -84,14 +134,14 @@ pin_project! {
     #[must_use = "futures do nothing unless you `.await` or poll them"]
     pub struct LocalHashedFileIn {
         #[pin]
-        reader: MaybeCompressedRead<File>,
+        file: File,
         hash: String,
         digest: ring::digest::Context,
     }
 }
 
 impl LocalHashedFileIn {
-    async fn open(path: PathBuf, compressed: bool) -> Result<Self, Error> {
+    async fn open(path: PathBuf) -> Result<Self, Error> {
         let hash = path.file_stem()
             .ok_or(Error::InvalidArgs(format!(
                 "file name must be hash: {}",
@@ -100,17 +150,8 @@ impl LocalHashedFileIn {
             .to_string_lossy() // should not matter as Base64 is expected
             .to_string();
         let file = File::open(&path).await?;
-        let reader = if compressed {
-            MaybeCompressedRead::Compressed {
-                decoder: AsyncZlibDecoder::new(file),
-            }
-        } else {
-            MaybeCompressedRead::Uncompressed {
-                reader: file,
-            }
-        };
         Ok(Self {
-            reader,
+            file,
             hash,
             digest: ring::digest::Context::new(&ring::digest::SHA256),
         })
@@ -142,7 +183,7 @@ impl AsyncRead for LocalHashedFileIn {
     ) -> Poll<std::io::Result<()>> {
         let this = self.project();
         let last_len = buf.filled().len();
-        match this.reader.poll_read(cx, buf) {
+        match this.file.poll_read(cx, buf) {
             Poll::Ready(Ok(())) => {
                 if buf.filled().len() != last_len {
                     let buf = &buf.filled()[last_len..];
@@ -183,6 +224,14 @@ impl<R> AsyncZlibDecoder<R> {
             input_buf: unsafe { MaybeUninit::uninit().assume_init() },
             input_pos: 0,
         }
+    }
+
+    /// Consumes the decoder and returns the underlying reader.
+    ///
+    /// Panics if decoding has not finished.
+    pub fn into_inner(self) -> R {
+        assert!(self.decoder_finished);
+        self.reader
     }
 }
 
@@ -309,41 +358,6 @@ where
             if *this.decoder_finished && *this.reader_finished {
                 return Poll::Ready(Ok(()));
             }
-        }
-    }
-}
-
-pin_project! {
-    /// Maybe compressed [`AsyncRead`](https://docs.rs/tokio/1.32.0/tokio/io/trait.AsyncRead.html).
-    #[project = MaybeCompressedReadProj]
-    pub enum MaybeCompressedRead<R> {
-        /// Zlib-compressed data.
-        Compressed {
-            #[pin]
-            decoder: AsyncZlibDecoder<R>,
-        },
-        /// Uncompressed data.
-        Uncompressed{
-            #[pin]
-            reader: R,
-        },
-    }
-}
-
-impl<R> AsyncRead for MaybeCompressedRead<R>
-where
-    R: AsyncRead,
-{
-    fn poll_read(
-        self: Pin<&mut Self>,
-        cx: &mut core::task::Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<std::io::Result<()>> {
-        match self.project() {
-            MaybeCompressedReadProj::Compressed { decoder } =>
-                decoder.poll_read(cx, buf),
-            MaybeCompressedReadProj::Uncompressed { reader } =>
-                reader.poll_read(cx, buf),
         }
     }
 }
