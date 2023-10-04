@@ -26,6 +26,7 @@ pub trait FileSystem {
     async fn open_hashed_file(
         &self,
         path: impl Into<String> + Send,
+        compressed: bool,
     ) -> Result<Self::HashedFileIn, Error>;
 }
 
@@ -66,8 +67,12 @@ impl FileSystem for LocalFileSystem {
     async fn open_hashed_file(
         &self,
         path: impl Into<String> + Send,
+        compressed: bool,
     ) -> Result<Self::HashedFileIn, Error> {
-        LocalHashedFileIn::open(self.base_path.join(path.into())).await
+        LocalHashedFileIn::open(
+            self.base_path.join(path.into()),
+            compressed,
+        ).await
     }
 }
 
@@ -78,14 +83,15 @@ pin_project! {
     /// the contents plus an extension.
     #[must_use = "futures do nothing unless you `.await` or poll them"]
     pub struct LocalHashedFileIn {
-        file: File,
+        #[pin]
+        reader: MaybeCompressedRead<File>,
         hash: String,
         digest: ring::digest::Context,
     }
 }
 
 impl LocalHashedFileIn {
-    async fn open(path: PathBuf) -> Result<Self, Error> {
+    async fn open(path: PathBuf, compressed: bool) -> Result<Self, Error> {
         let hash = path.file_stem()
             .ok_or(Error::InvalidArgs(format!(
                 "file name must be hash: {}",
@@ -94,8 +100,17 @@ impl LocalHashedFileIn {
             .to_string_lossy() // should not matter as Base64 is expected
             .to_string();
         let file = File::open(&path).await?;
+        let reader = if compressed {
+            MaybeCompressedRead::Compressed {
+                decoder: AsyncZlibDecoder::new(file),
+            }
+        } else {
+            MaybeCompressedRead::Uncompressed {
+                reader: file,
+            }
+        };
         Ok(Self {
-            file,
+            reader,
             hash,
             digest: ring::digest::Context::new(&ring::digest::SHA256),
         })
@@ -127,7 +142,7 @@ impl AsyncRead for LocalHashedFileIn {
     ) -> Poll<std::io::Result<()>> {
         let this = self.project();
         let last_len = buf.filled().len();
-        match Pin::new(this.file).poll_read(cx, buf) {
+        match this.reader.poll_read(cx, buf) {
             Poll::Ready(Ok(())) => {
                 if buf.filled().len() != last_len {
                     let buf = &buf.filled()[last_len..];
