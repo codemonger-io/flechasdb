@@ -208,7 +208,7 @@ impl FileSystem for LocalFileSystem {
 ///
 /// Created as a temporary file and renamed to the hash of its contents.
 pub struct LocalHashedFileOut {
-    // Temporary file as a writer.
+    // Temporary file.
     tempfile: NamedTempFile,
     // Persisted path.
     base_path: PathBuf,
@@ -218,8 +218,6 @@ pub struct LocalHashedFileOut {
 
 impl LocalHashedFileOut {
     /// Creates a temporary file to be persisted under a given path.
-    ///
-    /// The output is compressed with Zlib if `compress` is `true`.
     fn create(base_path: PathBuf) -> Result<Self, Error> {
         let tempfile = NamedTempFile::new()?;
         Ok(LocalHashedFileOut {
