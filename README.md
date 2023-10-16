@@ -1,10 +1,10 @@
 # flechasdb
 
-A lightweight vector database in your hands.
+![FlechasDB Brand](./flechasdb-brand.png)
+
+A serverless-friendly vector database in your hands.
 
 `flechasdb` package is the core library of the [FlechasDB system](#flechasdb-system) written in [Rust](https://www.rust-lang.org).
-
-**Table of Contents**
 
 <!-- TOC -->
 
@@ -26,6 +26,9 @@ A lightweight vector database in your hands.
         - [Building the library](#building-the-library)
         - [Generating documentation](#generating-documentation)
     - [Similar projects](#similar-projects)
+    - [License](#license)
+
+<!-- /TOC -->
 
 <!-- /TOC -->
 
@@ -354,6 +357,17 @@ cargo doc --lib --no-deps --release
 
   Fully managed vector database.
 
+- [Milvus](https://milvus.io)
+
+  Open-source vector database with a lot of features.
+
 - [LanceDB](https://lancedb.com)
 
-  One of their features is also **serverless**.
+  One of their features is also **serverless**, and their core is written in Rust!
+
+## License
+
+[MIT](./LICENSE)
+
+The following material by [codemonger](https://codemonger.io) is licensed under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/):
+- [FlechasDB Brand](./flechasdb-brand.png)
